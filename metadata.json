@@ -1,0 +1,6 @@
+{
+  "name": "Vocalis - Terapia Vocal & Fonoaudiologia",
+  "description": "Aplicativo para acompanhamento de exercícios vocais com lembretes diários, progresso visual, backend Python, SQLite e criptografia de dados dos pacientes.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
