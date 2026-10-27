@@ -13,18 +13,32 @@ import {
   PlayCircle,
   HelpCircle,
   ShieldCheck,
-  Check
+  Check,
+  Lock,
+  Star,
+  Trophy,
+  Zap,
+  KeyRound,
+  AlertCircle
 } from 'lucide-react';
-import { Exercise } from '../types';
+import { Exercise, User } from '../types';
+import { DailyVocalTip } from './DailyVocalTip';
+import { ActivationCodePrompt } from './ActivationCodePrompt';
 
 interface ExerciseCatalogProps {
   exercises: Exercise[];
+  patientLevel: number;
+  isActivated?: boolean;
+  currentUser?: User | null;
   onStartExercise: (exercise: Exercise) => void;
   onOpenVault: () => void;
+  onActivateUser?: (user: User) => void;
+  onOpenTherapistPanel?: () => void;
 }
 
 const CATEGORIES = [
   'Todos',
+  'Desafios de Nível',
   'Aquecimento & Soltura',
   'Trato Vocal Semiocluído',
   'Coordenação Pneumofônica',
@@ -36,16 +50,23 @@ const CATEGORIES = [
 
 export const ExerciseCatalog: React.FC<ExerciseCatalogProps> = ({
   exercises,
+  patientLevel,
+  isActivated = true,
+  currentUser,
   onStartExercise,
   onOpenVault,
+  onActivateUser,
+  onOpenTherapistPanel,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
   const [selectedExerciseForTips, setSelectedExerciseForTips] = useState<Exercise | null>(null);
+  const [showActivationModal, setShowActivationModal] = useState<boolean>(false);
 
-  const filteredExercises =
-    selectedCategory === 'Todos'
-      ? exercises
-      : exercises.filter((ex) => ex.category === selectedCategory);
+  const filteredExercises = exercises.filter((ex) => {
+    if (selectedCategory === 'Todos') return true;
+    if (selectedCategory === 'Desafios de Nível') return ex.is_challenge;
+    return ex.category === selectedCategory;
+  });
 
   const getExerciseIcon = (iconName: string) => {
     switch (iconName) {
@@ -63,39 +84,65 @@ export const ExerciseCatalog: React.FC<ExerciseCatalogProps> = ({
         return <Feather className="w-5 h-5 text-emerald-600" />;
       case 'Moon':
         return <Moon className="w-5 h-5 text-slate-600" />;
+      case 'Award':
+      case 'Trophy':
+        return <Trophy className="w-5 h-5 text-amber-500" />;
       default:
         return <Sparkles className="w-5 h-5 text-teal-600" />;
     }
   };
 
+  const handleExerciseClick = (exercise: Exercise) => {
+    if (!isActivated) {
+      setShowActivationModal(true);
+      return;
+    }
+    onStartExercise(exercise);
+  };
+
   return (
     <div className="space-y-8 pb-12">
+      {/* 1. Componente Dica do Dia Baseada em Evidências Científicas */}
+      <DailyVocalTip />
+
+      {/* 2. Banner de Ativação caso o paciente ainda não tenha inserido o código */}
+      {!isActivated && currentUser && (
+        <ActivationCodePrompt
+          user={currentUser}
+          onActivated={(updated) => {
+            setShowActivationModal(false);
+            if (onActivateUser) onActivateUser(updated);
+          }}
+          onOpenTherapistPanel={onOpenTherapistPanel}
+        />
+      )}
+
       {/* Visual Clinical Guide Hero Banner */}
       <div className="bg-white rounded-3xl border border-slate-200/80 p-6 md:p-8 shadow-sm overflow-hidden">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           <div className="lg:col-span-7 space-y-4">
             <div className="flex items-center gap-2 text-xs font-semibold text-teal-700">
               <span className="w-2 h-2 rounded-full bg-teal-600 inline-block"></span>
-              <span>Prescrição Fonoaudiológica Baseada em Evidências</span>
+              <span>Prescrição Fonoaudiológica & Desafios por Nível</span>
             </div>
 
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-900 font-display">
-              Rotina Guiada de Reabilitação & Condicionamento Vocal
+              Rotina de Reabilitação & Condicionamento Vocal
             </h1>
 
             <p className="text-slate-600 text-sm sm:text-base leading-relaxed">
-              Exercícios fonoaudiológicos personalizados para redução de fenda glótica, equilíbrio acústico e fortalecimento da musculatura laríngea sem sobrecarga vocal.
+              Pratique exercícios e enfrente desafios fonoaudiológicos para subir de nível vocal, acumular pontos XP e fortalecer as pregas vocais com apoio acústico e feedback de afinação.
             </p>
 
             <div className="pt-2 flex flex-wrap items-center gap-4 text-xs text-slate-600">
               <div className="flex items-center gap-1.5 font-medium">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                <span>Dados de prática 100% criptografados</span>
+                <Star className="w-4 h-4 text-amber-500 fill-amber-400" />
+                <span>Ganhe até 120 XP por sessão concluída</span>
               </div>
               <span aria-hidden="true" className="text-slate-300">·</span>
               <div className="flex items-center gap-1.5 font-medium">
-                <Volume2 className="w-4 h-4 text-teal-600" />
-                <span>Feedback de afinação em tempo real</span>
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                <span>Dados de prática criptografados no SQLite</span>
               </div>
             </div>
           </div>
@@ -111,7 +158,9 @@ export const ExerciseCatalog: React.FC<ExerciseCatalogProps> = ({
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent flex items-end p-4">
                 <div className="text-white text-xs">
                   <div className="font-bold">Mecanismo de Ressonância & Fonação</div>
-                  <div className="text-slate-200 text-[11px]">Ajuste do trato vocal semiocluído e suporte subglótico</div>
+                  <div className="text-slate-200 text-[11px]">
+                    Seu Nível Atual: Nível {patientLevel} · Desbloqueando novas técnicas
+                  </div>
                 </div>
               </div>
             </div>
@@ -125,44 +174,83 @@ export const ExerciseCatalog: React.FC<ExerciseCatalogProps> = ({
           <button
             key={cat}
             onClick={() => setSelectedCategory(cat)}
-            className={`px-3.5 py-2 text-xs font-medium rounded-xl whitespace-nowrap shrink-0 transition-colors ${
+            className={`px-3.5 py-2 text-xs font-medium rounded-xl whitespace-nowrap shrink-0 transition-colors flex items-center gap-1.5 ${
               selectedCategory === cat
                 ? 'bg-slate-900 text-white shadow-xs'
                 : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200/70'
             }`}
           >
-            {cat}
+            {cat === 'Desafios de Nível' && <Trophy className="w-3.5 h-3.5 text-amber-400" />}
+            <span>{cat}</span>
           </button>
         ))}
       </div>
 
-      {/* Exercises Grid */}
+      {/* Exercises & Challenges Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {filteredExercises.map((exercise) => {
+          const isLevelLocked = exercise.min_level > patientLevel;
+
           return (
             <div
               key={exercise.id}
-              className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
+              className={`rounded-2xl border p-5 shadow-xs transition-all flex flex-col justify-between group relative overflow-hidden ${
+                isLevelLocked
+                  ? 'bg-slate-50/80 border-slate-200/60 opacity-80'
+                  : exercise.is_challenge
+                  ? 'bg-gradient-to-b from-amber-50/40 to-white border-amber-200/90 hover:border-amber-400 hover:shadow-md'
+                  : 'bg-white border-slate-200/80 hover:border-teal-300 hover:shadow-md'
+              }`}
             >
               <div>
-                {/* Header of Card: Icon & Category */}
+                {/* Header of Card: Icon & Category & Gamification XP */}
                 <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center shrink-0">
+                  <div
+                    className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${
+                      exercise.is_challenge
+                        ? 'bg-amber-100/70 border-amber-300 text-amber-900'
+                        : 'bg-slate-50 border-slate-200/60'
+                    }`}
+                  >
                     {getExerciseIcon(exercise.icon_name)}
                   </div>
-                  <div className="text-right">
-                    <span className="text-[11px] font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-100">
-                      {exercise.category}
+
+                  <div className="flex items-center gap-1.5">
+                    {exercise.is_challenge && (
+                      <span className="text-[10px] font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-300 flex items-center gap-1">
+                        <Trophy className="w-3 h-3 text-amber-600" />
+                        <span>Desafio</span>
+                      </span>
+                    )}
+
+                    <span className="text-[11px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-100 flex items-center gap-1">
+                      <Star className="w-3 h-3 text-amber-500 fill-amber-400" />
+                      <span>+{exercise.xp_reward || 45} XP</span>
                     </span>
                   </div>
                 </div>
 
                 {/* Title & Target Range */}
-                <h3 className="text-base font-bold text-slate-900 group-hover:text-teal-700 transition-colors font-display">
-                  {exercise.title}
-                </h3>
-                <div className="text-xs text-slate-500 mt-0.5 font-medium">
-                  {exercise.target_range}
+                <div className="flex items-start gap-1.5">
+                  <h3 className="text-base font-bold text-slate-900 group-hover:text-teal-700 transition-colors font-display">
+                    {exercise.title}
+                  </h3>
+                </div>
+
+                <div className="text-xs text-slate-500 mt-0.5 font-medium flex items-center gap-1.5">
+                  <span>{exercise.target_range}</span>
+                  {exercise.min_level > 1 && (
+                    <>
+                      <span className="text-slate-300">·</span>
+                      <span
+                        className={`text-[10px] font-semibold ${
+                          isLevelLocked ? 'text-amber-800' : 'text-slate-600'
+                        }`}
+                      >
+                        Nível {exercise.min_level}+
+                      </span>
+                    </>
+                  )}
                 </div>
 
                 {/* Description */}
@@ -170,10 +258,10 @@ export const ExerciseCatalog: React.FC<ExerciseCatalogProps> = ({
                   {exercise.description}
                 </p>
 
-                {/* Fonoaudiological Benefits Callout */}
+                {/* Clinical Benefit Callout */}
                 <div className="mt-3.5 p-3 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-slate-700">
                   <strong className="text-slate-900 block mb-0.5 font-semibold">
-                    Benefício Terapêutico:
+                    Benefício Fonoaudiológico:
                   </strong>
                   <span className="line-clamp-2 text-slate-600 leading-normal">
                     {exercise.benefits}
@@ -181,7 +269,7 @@ export const ExerciseCatalog: React.FC<ExerciseCatalogProps> = ({
                 </div>
               </div>
 
-              {/* Footer with Metrics & Action Button */}
+              {/* Footer with Controls */}
               <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between gap-2">
                 <div className="text-[11px] text-slate-500 tabular-nums">
                   <span>{exercise.default_reps} séries</span>
@@ -193,19 +281,42 @@ export const ExerciseCatalog: React.FC<ExerciseCatalogProps> = ({
                   <button
                     onClick={() => setSelectedExerciseForTips(exercise)}
                     className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                    title="Ver Orientações & Cuidados"
-                    aria-label="Ver Orientações"
+                    title="Ver Orientações & Instruções"
+                    aria-label="Ver Instruções"
                   >
                     <Info className="w-4 h-4" />
                   </button>
 
-                  <button
-                    onClick={() => onStartExercise(exercise)}
-                    className="px-3 py-1.5 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 active:bg-teal-800 rounded-lg transition-colors flex items-center gap-1.5 shadow-xs"
-                  >
-                    <PlayCircle className="w-3.5 h-3.5" />
-                    <span>Iniciar Treino</span>
-                  </button>
+                  {isLevelLocked ? (
+                    <div
+                      className="px-3 py-1.5 text-xs font-semibold text-slate-500 bg-slate-200/80 rounded-lg flex items-center gap-1.5 cursor-not-allowed"
+                      title={`Desbloqueia no Nível ${exercise.min_level}`}
+                    >
+                      <Lock className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Bloqueado (Nv. {exercise.min_level})</span>
+                    </div>
+                  ) : !isActivated ? (
+                    <button
+                      onClick={() => setShowActivationModal(true)}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 shadow-xs bg-amber-600 hover:bg-amber-700 text-white"
+                      title="Requer código da fonoaudióloga"
+                    >
+                      <KeyRound className="w-3.5 h-3.5" />
+                      <span>Ativar Código</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleExerciseClick(exercise)}
+                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 shadow-xs ${
+                        exercise.is_challenge
+                          ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                          : 'bg-teal-600 hover:bg-teal-700 text-white'
+                      }`}
+                    >
+                      <PlayCircle className="w-3.5 h-3.5" />
+                      <span>{exercise.is_challenge ? 'Iniciar Desafio' : 'Iniciar Treino'}</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -213,16 +324,46 @@ export const ExerciseCatalog: React.FC<ExerciseCatalogProps> = ({
         })}
       </div>
 
+      {/* Activation Modal barrier if clicked */}
+      {showActivationModal && currentUser && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="relative max-w-xl w-full">
+            <button
+              onClick={() => setShowActivationModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 z-10 font-bold p-2"
+            >
+              ✕
+            </button>
+            <ActivationCodePrompt
+              user={currentUser}
+              onActivated={(updated) => {
+                setShowActivationModal(false);
+                if (onActivateUser) onActivateUser(updated);
+              }}
+              onOpenTherapistPanel={() => {
+                setShowActivationModal(false);
+                if (onOpenTherapistPanel) onOpenTherapistPanel();
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Modal with Clinical Guidance & Instructions */}
       {selectedExerciseForTips && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between">
               <div>
-                <span className="text-xs font-semibold text-teal-700 uppercase tracking-wider">
-                  {selectedExerciseForTips.category}
-                </span>
-                <h3 className="text-lg font-bold text-slate-900 font-display mt-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-teal-700 uppercase tracking-wider">
+                    {selectedExerciseForTips.category}
+                  </span>
+                  <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                    +{selectedExerciseForTips.xp_reward} XP
+                  </span>
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 font-display mt-1">
                   {selectedExerciseForTips.title}
                 </h3>
               </div>
@@ -264,17 +405,24 @@ export const ExerciseCatalog: React.FC<ExerciseCatalogProps> = ({
               >
                 Fechar
               </button>
-              <button
-                onClick={() => {
-                  const ex = selectedExerciseForTips;
-                  setSelectedExerciseForTips(null);
-                  onStartExercise(ex);
-                }}
-                className="px-4 py-2 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-xl flex items-center gap-1.5"
-              >
-                <PlayCircle className="w-4 h-4" />
-                <span>Começar Agora</span>
-              </button>
+              {selectedExerciseForTips.min_level <= patientLevel ? (
+                <button
+                  onClick={() => {
+                    const ex = selectedExerciseForTips;
+                    setSelectedExerciseForTips(null);
+                    handleExerciseClick(ex);
+                  }}
+                  className="px-4 py-2 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-xl flex items-center gap-1.5"
+                >
+                  <PlayCircle className="w-4 h-4" />
+                  <span>Começar Agora</span>
+                </button>
+              ) : (
+                <span className="text-xs text-amber-900 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200 font-semibold flex items-center gap-1">
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Desbloqueia no Nível {selectedExerciseForTips.min_level}</span>
+                </span>
+              )}
             </div>
           </div>
         </div>

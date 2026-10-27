@@ -299,7 +299,11 @@ Relatório gerado em ${new Date().toLocaleDateString('pt-BR')} via Vocalis (Dado
                   </div>
                 </div>
 
-                <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-200 text-center">
+                <div className="grid grid-cols-5 gap-2 pt-2 border-t border-slate-200 text-center">
+                  <div className="p-2 bg-white rounded-lg border border-slate-100">
+                    <div className="text-[10px] text-slate-500 uppercase">Nível / XP</div>
+                    <div className="font-bold text-teal-800 text-sm">Nv. {patient.level} ({patient.xp_points} XP)</div>
+                  </div>
                   <div className="p-2 bg-white rounded-lg border border-slate-100">
                     <div className="text-[10px] text-slate-500 uppercase">Sequência</div>
                     <div className="font-bold text-slate-900 text-sm">{stats?.streak_days || 0} dias</div>

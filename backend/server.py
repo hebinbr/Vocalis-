@@ -1,6 +1,6 @@
 """
 Vocalis - Servidor REST API em Python
-Conecta a interface do paciente com o banco SQLite criptografado.
+Conecta a interface do paciente e da fonoaudióloga com o banco SQLite criptografado.
 """
 
 import sys
@@ -47,6 +47,8 @@ class VocalisAPIHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/")
+        query = parse_qs(parsed.query)
+        user_id = int(query.get("user_id", [0])[0]) or None
         
         if path == "/api/status" or path == "/api/health":
             self._send_json({
@@ -59,7 +61,7 @@ class VocalisAPIHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/patient":
-            patient = db.get_patient()
+            patient = db.get_patient(user_id)
             self._send_json(patient or {})
             return
 
@@ -69,12 +71,12 @@ class VocalisAPIHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/logs":
-            logs = db.get_all_logs()
+            logs = db.get_all_logs(user_id)
             self._send_json(logs)
             return
 
         if path == "/api/reminders":
-            reminders = db.get_reminders()
+            reminders = db.get_reminders(user_id)
             self._send_json(reminders)
             return
 
@@ -83,20 +85,23 @@ class VocalisAPIHandler(BaseHTTPRequestHandler):
             self._send_json(audit)
             return
 
+        if path == "/api/therapist/dashboard":
+            therapist_id = int(query.get("therapist_id", [1])[0])
+            dashboard = db.get_therapist_dashboard_data(therapist_id)
+            self._send_json(dashboard)
+            return
+
         if path == "/api/progress/stats":
-            logs = db.get_all_logs()
-            patient = db.get_patient() or {}
+            logs = db.get_all_logs(user_id)
+            patient = db.get_patient(user_id) or {}
             
-            # Cálculo de estatísticas visuais detalhadas
             total_duration_sec = sum(l["duration_sec"] for l in logs)
             total_sessions = len(logs)
             avg_accuracy = round(sum(l["pitch_accuracy"] for l in logs) / max(total_sessions, 1), 1)
             
-            # Redução média de fadiga vocal (antes vs depois)
             fatigue_reductions = [l["fatigue_before"] - l["fatigue_after"] for l in logs if l["fatigue_before"] is not None]
             avg_fatigue_relief = round(sum(fatigue_reductions) / max(len(fatigue_reductions), 1), 1)
 
-            # Histórico dos últimos 7 dias para visualização gráfica
             today = date.today()
             last_7_days = []
             for i in range(6, -1, -1):
@@ -113,55 +118,110 @@ class VocalisAPIHandler(BaseHTTPRequestHandler):
                     "count": len(day_logs)
                 })
 
-            # Badges / Conquistas
+            patient_xp = patient.get("xp_points", 350)
+            patient_level = patient.get("level", 2)
+            streak = patient.get("streak_count", 0)
+            best_streak = patient.get("best_streak", 0)
+
             badges = [
                 {
                     "id": "primeira_nota",
                     "title": "Primeira Nota",
-                    "description": "Completou seu primeiro exercício vocal",
+                    "description": "Completou o primeiro exercício vocal com sucesso",
+                    "category": "Iniciação",
                     "unlocked": total_sessions >= 1,
                     "icon": "Award"
                 },
                 {
-                    "id": "resistencia_vocal",
-                    "title": "Voz Resistente",
-                    "description": "Acumulou mais de 10 minutos de exercícios vocais guiados",
-                    "unlocked": total_duration_sec >= 600,
-                    "icon": "ShieldCheck"
-                },
-                {
-                    "id": "constancia_vocal",
-                    "title": "Constância Terapêutica",
+                    "id": "fogo_vocal",
+                    "title": "Chama da Constância",
                     "description": "Alcançou sequência de pelo menos 3 dias consecutivos",
-                    "unlocked": (patient.get("streak_count", 0) >= 3 or patient.get("best_streak", 0) >= 3),
+                    "category": "Disciplina",
+                    "unlocked": (streak >= 3 or best_streak >= 3),
                     "icon": "Flame"
                 },
                 {
-                    "id": "mestre_sovte",
-                    "title": "Mestre do Trato Ocluído",
-                    "description": "Completou sessões de Canudo d'Água ou Vibração",
-                    "unlocked": any(l["exercise_id"] in ["canudo_sovte", "vib_labios"] for l in logs),
-                    "icon": "Waves"
+                    "id": "semana_perfeita",
+                    "title": "Semana Vocal de Ferro",
+                    "description": "Manteve 7 dias consecutivos de cuidado com a voz",
+                    "category": "Disciplina",
+                    "unlocked": (streak >= 7 or best_streak >= 7),
+                    "icon": "ShieldCheck"
                 },
                 {
                     "id": "alta_precisao",
                     "title": "Afinador de Ouro",
-                    "description": "Alcançou precisão de frequência de afinação acima de 95%",
+                    "description": "Alcançou precisão acústica (F0) acima de 95%",
+                    "category": "Técnica",
                     "unlocked": any(l["pitch_accuracy"] >= 95 for l in logs),
                     "icon": "Zap"
+                },
+                {
+                    "id": "mestre_sovte",
+                    "title": "Mestre do Canudo SOVTE",
+                    "description": "Praticou exercícios de trato semiocluído (bolhas e vibração)",
+                    "category": "Reabilitação",
+                    "unlocked": any(l["exercise_id"] in ["canudo_sovte", "vib_labios", "desafio_bolhas_sovte"] for l in logs),
+                    "icon": "Waves"
+                },
+                {
+                    "id": "harmonia_sz",
+                    "title": "Harmonia Pneumofônica",
+                    "description": "Realizou a medição do tempo de sustentação de /s/ e /z/",
+                    "category": "Avaliação",
+                    "unlocked": any(l["exercise_id"] in ["relacao_sz", "desafio_proporcao_aurea"] for l in logs),
+                    "icon": "Timer"
+                },
+                {
+                    "id": "alivio_profundo",
+                    "title": "Alívio Laríngeo Profundo",
+                    "description": "Reduziu a fadiga vocal em 3 ou mais pontos em uma sessão",
+                    "category": "Bem-Estar",
+                    "unlocked": any((l["fatigue_before"] - l["fatigue_after"]) >= 3 for l in logs),
+                    "icon": "TrendingDown"
+                },
+                {
+                    "id": "resistencia_vocal",
+                    "title": "Voz Resistente",
+                    "description": "Acumulou mais de 20 minutos de exercícios fonoaudiológicos",
+                    "category": "Condicionamento",
+                    "unlocked": total_duration_sec >= 1200,
+                    "icon": "Clock"
+                },
+                {
+                    "id": "guardiao_laringe",
+                    "title": "Guardião da Laringe",
+                    "description": "Alcançou o Nível 3 desbloqueando coordenação avançada",
+                    "category": "Nível",
+                    "unlocked": patient_level >= 3,
+                    "icon": "Shield"
+                },
+                {
+                    "id": "mestre_supremo",
+                    "title": "Voz de Ouro & Maestria",
+                    "description": "Alcançou o Nível 5 de Alta Performance Vocal",
+                    "category": "Nível",
+                    "unlocked": patient_level >= 5,
+                    "icon": "Crown"
                 }
             ]
 
             stats = {
                 "total_sessions": total_sessions,
                 "total_minutes": total_duration_sec // 60,
-                "streak_days": patient.get("streak_count", 0),
-                "best_streak": patient.get("best_streak", 0),
+                "streak_days": streak,
+                "best_streak": best_streak,
                 "avg_pitch_accuracy": avg_accuracy,
                 "avg_fatigue_relief": avg_fatigue_relief,
                 "daily_goal_minutes": patient.get("daily_goal_minutes", 15),
                 "last_7_days": last_7_days,
-                "badges": badges
+                "badges": badges,
+                "xp_points": patient_xp,
+                "level": patient_level,
+                "level_title": patient.get("level_title", "Ressonador Ativo"),
+                "level_progress_percent": patient.get("level_progress_percent", 42),
+                "xp_for_next_level": patient.get("xp_for_next_level", 170),
+                "all_levels": db.LEVEL_CONFIG
             }
             self._send_json(stats)
             return
@@ -173,13 +233,41 @@ class VocalisAPIHandler(BaseHTTPRequestHandler):
         path = parsed.path.rstrip("/")
         data = self._read_json()
 
+        # Autenticação & Cadastro
+        if path == "/api/auth/register":
+            res, code = db.register_user(data)
+            self._send_json(res, status=code)
+            return
+
+        if path == "/api/auth/login":
+            res, code = db.login_user(data)
+            self._send_json(res, status=code)
+            return
+
+        if path == "/api/auth/activate":
+            user_id = data.get("user_id")
+            code_str = data.get("code", "")
+            res, status_code = db.activate_patient_with_code(user_id, code_str)
+            self._send_json(res, status=status_code)
+            return
+
+        if path == "/api/therapist/generate-code":
+            therapist_id = data.get("therapist_id", 1)
+            patient_name = data.get("patient_name", "")
+            patient_email = data.get("patient_email", "")
+            code_obj = db.create_access_code(therapist_id, patient_name, patient_email)
+            self._send_json({"success": True, "code": code_obj}, status=201)
+            return
+
         if path == "/api/logs":
-            res = db.add_exercise_log(data)
+            user_id = data.get("user_id")
+            res = db.add_exercise_log(data, user_id)
             self._send_json(res, status=201)
             return
 
         if path == "/api/reminders":
-            res = db.add_reminder(data)
+            user_id = data.get("user_id")
+            res = db.add_reminder(data, user_id)
             self._send_json(res, status=201)
             return
 
@@ -191,7 +279,8 @@ class VocalisAPIHandler(BaseHTTPRequestHandler):
         data = self._read_json()
 
         if path == "/api/patient":
-            updated = db.update_patient(data)
+            user_id = data.get("user_id")
+            updated = db.update_patient(data, user_id)
             self._send_json(updated)
             return
 
@@ -234,7 +323,6 @@ class VocalisAPIHandler(BaseHTTPRequestHandler):
         self._send_json({"error": "Endpoint não encontrado"}, status=404)
 
     def log_message(self, format, *args):
-        # Silencia logs verbosos de HTTP para não poluir terminal
         pass
 
 

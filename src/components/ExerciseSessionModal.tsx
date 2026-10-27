@@ -16,9 +16,15 @@ import {
   ArrowRight,
   TrendingDown,
   ShieldCheck,
-  Zap
+  Zap,
+  Star,
+  Award,
+  Crown,
+  Trophy,
+  Check,
+  Flame
 } from 'lucide-react';
-import { Exercise } from '../types';
+import { Exercise, SessionSaveResult } from '../types';
 import { useVocalAudio } from '../hooks/useVocalAudio';
 
 interface ExerciseSessionModalProps {
@@ -35,7 +41,7 @@ interface ExerciseSessionModalProps {
     fatigue_after: number;
     notes: string;
     date_iso: string;
-  }) => Promise<void>;
+  }) => Promise<SessionSaveResult | any>;
 }
 
 export const ExerciseSessionModal: React.FC<ExerciseSessionModalProps> = ({
@@ -47,7 +53,7 @@ export const ExerciseSessionModal: React.FC<ExerciseSessionModalProps> = ({
     useVocalAudio();
 
   // Session state
-  const [phase, setPhase] = useState<'prep' | 'active' | 'rest' | 'reflection' | 'saving'>('prep');
+  const [phase, setPhase] = useState<'prep' | 'active' | 'rest' | 'reflection' | 'saving' | 'reward'>('prep');
   const [currentRep, setCurrentRep] = useState<number>(1);
   const totalReps = exercise.default_reps;
   const repDuration = exercise.default_duration_sec;
@@ -64,9 +70,10 @@ export const ExerciseSessionModal: React.FC<ExerciseSessionModalProps> = ({
   const [fatigueAfter, setFatigueAfter] = useState<number>(2);
   const [effortLevel, setEffortLevel] = useState<number>(3);
   const [patientNotes, setPatientNotes] = useState<string>('');
+  const [rewardData, setRewardData] = useState<SessionSaveResult | null>(null);
 
   // Special test mode for /s/ and /z/ ratio
-  const isSZExercise = exercise.id === 'relacao_sz';
+  const isSZExercise = exercise.id === 'relacao_sz' || exercise.id === 'desafio_proporcao_aurea';
   const [szStage, setSzStage] = useState<'s' | 'z' | 'result'>('s');
   const [sDuration, setSDuration] = useState<number>(0);
   const [zDuration, setZDuration] = useState<number>(0);
@@ -187,7 +194,7 @@ export const ExerciseSessionModal: React.FC<ExerciseSessionModalProps> = ({
     }
 
     try {
-      await onSaveSession({
+      const result = await onSaveSession({
         exercise_id: exercise.id,
         exercise_title: exercise.title,
         duration_sec: totalDuration,
@@ -199,7 +206,17 @@ export const ExerciseSessionModal: React.FC<ExerciseSessionModalProps> = ({
         notes: patientNotes,
         date_iso: new Date().toISOString().split('T')[0],
       });
-      onClose();
+
+      setRewardData(result);
+      setPhase('reward');
+
+      // Celebration
+      if (result?.leveled_up) {
+        playChime('success');
+        confetti({ particleCount: 120, spread: 80, origin: { y: 0.5 } });
+      } else {
+        confetti({ particleCount: 60, spread: 50, origin: { y: 0.6 } });
+      }
     } catch (e) {
       console.error(e);
       setPhase('reflection');
@@ -214,10 +231,16 @@ export const ExerciseSessionModal: React.FC<ExerciseSessionModalProps> = ({
         {/* Modal Top Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div>
-            <div className="text-[11px] font-semibold text-teal-700 uppercase tracking-wider">
-              {exercise.category}
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-semibold text-teal-700 uppercase tracking-wider">
+                {exercise.category}
+              </span>
+              <span className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1">
+                <Star className="w-3 h-3 text-amber-500 fill-amber-400" />
+                <span>+{exercise.xp_reward || 45} XP</span>
+              </span>
             </div>
-            <h2 className="text-base font-bold text-slate-900 font-display">
+            <h2 className="text-base font-bold text-slate-900 font-display mt-0.5">
               {exercise.title}
             </h2>
           </div>
@@ -241,12 +264,16 @@ export const ExerciseSessionModal: React.FC<ExerciseSessionModalProps> = ({
           {phase === 'prep' && (
             <div className="space-y-6 text-center py-2">
               <div className="w-16 h-16 rounded-2xl bg-teal-50 border border-teal-100 text-teal-700 flex items-center justify-center mx-auto shadow-inner">
-                <Sparkles className="w-8 h-8" />
+                {exercise.is_challenge ? (
+                  <Trophy className="w-8 h-8 text-amber-500" />
+                ) : (
+                  <Sparkles className="w-8 h-8" />
+                )}
               </div>
 
               <div className="space-y-2">
                 <h3 className="text-xl font-bold text-slate-900 font-display">
-                  Pronto para iniciar?
+                  {exercise.is_challenge ? 'Pronto para o Desafio de Nível?' : 'Pronto para iniciar?'}
                 </h3>
                 <p className="text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
                   {exercise.description}
@@ -302,10 +329,14 @@ export const ExerciseSessionModal: React.FC<ExerciseSessionModalProps> = ({
               <div className="flex items-center justify-center gap-3 pt-2">
                 <button
                   onClick={handleStartSession}
-                  className="px-6 py-3 text-sm font-semibold text-white bg-teal-600 hover:bg-teal-700 active:bg-teal-800 rounded-xl shadow-sm transition-all flex items-center gap-2"
+                  className={`px-6 py-3 text-sm font-semibold text-white rounded-xl shadow-sm transition-all flex items-center gap-2 ${
+                    exercise.is_challenge
+                      ? 'bg-amber-600 hover:bg-amber-700 active:bg-amber-800'
+                      : 'bg-teal-600 hover:bg-teal-700 active:bg-teal-800'
+                  }`}
                 >
                   <Play className="w-4 h-4 fill-white" />
-                  <span>Iniciar Sessão Guiada</span>
+                  <span>{exercise.is_challenge ? 'Iniciar Desafio Vocal' : 'Iniciar Sessão Guiada'}</span>
                 </button>
               </div>
             </div>
@@ -635,8 +666,114 @@ export const ExerciseSessionModal: React.FC<ExerciseSessionModalProps> = ({
             <div className="text-center py-12 space-y-3">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mx-auto"></div>
               <p className="text-xs font-semibold text-slate-700">
-                Criptografando dados com PBKDF2 e gravando no SQLite...
+                Calculando XP, bônus de afinação e gravando no SQLite...
               </p>
+            </div>
+          )}
+
+          {/* Phase 5: Gamification XP Reward & Level Up Screen */}
+          {phase === 'reward' && rewardData && (
+            <div className="space-y-6 text-center py-2">
+              {rewardData.leveled_up ? (
+                /* Level Up Banner */
+                <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-teal-600 text-white p-6 rounded-3xl shadow-md space-y-3 animate-bounce-once">
+                  <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center mx-auto shadow-inner">
+                    <Crown className="w-10 h-10 text-amber-200 fill-amber-200" />
+                  </div>
+                  <div className="inline-block px-3 py-1 bg-white/20 rounded-full text-xs font-bold uppercase tracking-wider">
+                    🎉 Subiu de Nível!
+                  </div>
+                  <h3 className="text-2xl font-extrabold font-display">
+                    Nível {rewardData.new_level}: {rewardData.level_title}
+                  </h3>
+                  <p className="text-xs text-white/90 max-w-sm mx-auto leading-relaxed">
+                    Sua dedicação constante fortaleceu sua musculatura vocal e liberou novos exercícios e desafios!
+                  </p>
+                </div>
+              ) : (
+                /* Standard Session Rewards */
+                <div className="space-y-2">
+                  <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto shadow-xs">
+                    <Trophy className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-xl font-extrabold text-slate-900 font-display">
+                    Pontos de Experiência Conquistados!
+                  </h3>
+                  <div className="text-4xl font-black text-amber-700 tabular-nums font-display">
+                    +{rewardData.xp_earned} XP
+                  </div>
+                </div>
+              )}
+
+              {/* XP Breakdown Card */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 text-left space-y-2.5">
+                <div className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-1">
+                  Detalhamento de Pontos da Sessão:
+                </div>
+
+                <div className="flex items-center justify-between text-xs text-slate-700">
+                  <span>Pontos Base do Exercício:</span>
+                  <span className="font-bold text-slate-900 tabular-nums">+{rewardData.base_xp} XP</span>
+                </div>
+
+                {rewardData.accuracy_bonus > 0 && (
+                  <div className="flex items-center justify-between text-xs text-emerald-700 font-medium">
+                    <span className="flex items-center gap-1">
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>Bônus Afinação Acústica ({'>'}= 85%):</span>
+                    </span>
+                    <span className="font-bold tabular-nums">+{rewardData.accuracy_bonus} XP</span>
+                  </div>
+                )}
+
+                {rewardData.fatigue_bonus > 0 && (
+                  <div className="flex items-center justify-between text-xs text-teal-700 font-medium">
+                    <span className="flex items-center gap-1">
+                      <TrendingDown className="w-3.5 h-3.5" />
+                      <span>Bônus de Alívio Laríngeo Comprovado:</span>
+                    </span>
+                    <span className="font-bold tabular-nums">+{rewardData.fatigue_bonus} XP</span>
+                  </div>
+                )}
+
+                {rewardData.streak_bonus > 0 && (
+                  <div className="flex items-center justify-between text-xs text-amber-700 font-medium">
+                    <span className="flex items-center gap-1">
+                      <Flame className="w-3.5 h-3.5" />
+                      <span>Bônus Multiplicador de Sequência Diária:</span>
+                    </span>
+                    <span className="font-bold tabular-nums">+{rewardData.streak_bonus} XP</span>
+                  </div>
+                )}
+
+                <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs font-bold text-slate-900">
+                  <span>Total Acumulado no Prontuário:</span>
+                  <span className="text-teal-700 tabular-nums">{rewardData.total_xp} XP</span>
+                </div>
+              </div>
+
+              {rewardData.unlocked_features && rewardData.unlocked_features.length > 0 && (
+                <div className="bg-emerald-50 p-3.5 rounded-2xl border border-emerald-200 text-left space-y-1 text-xs">
+                  <div className="font-bold text-emerald-950 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-emerald-600" />
+                    <span>Novas Técnicas Desbloqueadas:</span>
+                  </div>
+                  <ul className="list-disc list-inside text-emerald-800 text-[11px] space-y-0.5">
+                    {rewardData.unlocked_features.map((feat, i) => (
+                      <li key={i}>{feat}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="pt-2">
+                <button
+                  onClick={onClose}
+                  className="w-full py-3 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition-colors shadow-xs"
+                >
+                  Concluir & Voltar ao Painel
+                </button>
+              </div>
             </div>
           )}
         </div>

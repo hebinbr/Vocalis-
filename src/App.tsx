@@ -10,15 +10,17 @@ import {
   ShieldCheck,
   Flame,
   Bell,
-  User,
+  User as UserIcon,
   Sparkles,
   AlertCircle,
   RefreshCw,
   Lock,
   Layers,
-  HeartPulse
+  HeartPulse,
+  KeyRound,
+  Stethoscope
 } from 'lucide-react';
-import { Patient, Exercise, ExerciseLog, Reminder, ProgressStats } from './types';
+import { Patient, Exercise, ExerciseLog, Reminder, ProgressStats, User } from './types';
 import { api } from './services/api';
 import { Header } from './components/Header';
 import { ExerciseCatalog } from './components/ExerciseCatalog';
@@ -27,34 +29,67 @@ import { RemindersManager } from './components/RemindersManager';
 import { ExerciseSessionModal } from './components/ExerciseSessionModal';
 import { SecurityVaultModal } from './components/SecurityVaultModal';
 import { PatientProfileModal } from './components/PatientProfileModal';
+import { CelebrationModal, CelebrationData } from './components/CelebrationModal';
+import { AuthModal } from './components/AuthModal';
+import { TherapistDashboard } from './components/TherapistDashboard';
 
 export default function App() {
-  const [currentTab, setCurrentTab] = useState<'exercises' | 'progress' | 'reminders' | 'vault'>('exercises');
+  const [currentTab, setCurrentTab] = useState<'exercises' | 'progress' | 'reminders' | 'vault' | 'therapist'>('exercises');
   const [patient, setPatient] = useState<Patient | null>(null);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [logs, setLogs] = useState<ExerciseLog[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [stats, setStats] = useState<ProgressStats | null>(null);
 
+  // Authenticated User State (defaults to Camila, patient with persistent SQLite record)
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    try {
+      const stored = localStorage.getItem('vocalis_current_user');
+      if (stored) return JSON.parse(stored);
+    } catch {
+      // fallback
+    }
+    return {
+      id: 2,
+      role: 'paciente',
+      name: 'Camila Rossi',
+      email: 'camila@email.com',
+      is_activated: true,
+      therapist_id: 1,
+      activation_code_used: 'VOCA-2026',
+    };
+  });
+
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Active Modals
+  // Active Modals & Triggers
   const [activeExercise, setActiveExercise] = useState<Exercise | null>(null);
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
   const [showVaultModal, setShowVaultModal] = useState<boolean>(false);
+  const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
+  const [celebrationData, setCelebrationData] = useState<CelebrationData | null>(null);
 
-  // Load all initial data from Python SQLite backend
+  // Save current user to localStorage whenever changed
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('vocalis_current_user', JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem('vocalis_current_user');
+    }
+  }, [currentUser]);
+
+  // Load initial app data from Python SQLite backend
   const loadAppData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       const [patientData, exercisesData, logsData, remindersData, statsData] = await Promise.all([
-        api.getPatient(),
+        api.getPatient(currentUser?.id),
         api.getExercises(),
-        api.getLogs(),
-        api.getReminders(),
-        api.getProgressStats(),
+        api.getLogs(currentUser?.id),
+        api.getReminders(currentUser?.id),
+        api.getProgressStats(currentUser?.id),
       ]);
 
       setPatient(patientData);
@@ -68,32 +103,65 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentUser?.id]);
 
   useEffect(() => {
     loadAppData();
   }, [loadAppData]);
 
-  // Handle saving an exercise log
+  // Handle saving an exercise log with gamification celebration rewards
   const handleSaveExerciseLog = async (logData: any) => {
-    await api.addLog(logData);
-    // Refresh logs, stats, and patient streak
+    const previousBadges = stats?.badges?.filter((b) => b.unlocked).map((b) => b.id) || [];
+    const result = await api.addLog({
+      ...logData,
+      user_id: currentUser?.id,
+    });
+
+    // Refresh logs, stats, and patient level/xp/streak
     const [updatedLogs, updatedStats, updatedPatient] = await Promise.all([
-      api.getLogs(),
-      api.getProgressStats(),
-      api.getPatient(),
+      api.getLogs(currentUser?.id),
+      api.getProgressStats(currentUser?.id),
+      api.getPatient(currentUser?.id),
     ]);
+
     setLogs(updatedLogs);
     setStats(updatedStats);
     setPatient(updatedPatient);
+
+    // Trigger Celebration Modal on Level-Up or Badge Unlock!
+    if (result.leveled_up) {
+      setCelebrationData({
+        type: 'level',
+        title: `Parabéns! Você subiu para o Nível ${result.new_level}!`,
+        subtitle: result.level_title || 'Nova Conquista Vocal',
+        description: `Sua disciplina vocal deu frutos. Novos desafios e técnicas avançadas foram liberados no seu plano de exercícios!`,
+        levelNumber: result.new_level,
+        xpBonus: result.xp_earned,
+      });
+    } else {
+      // Check if a new badge was unlocked
+      const newBadges = updatedStats.badges.filter((b) => b.unlocked && !previousBadges.includes(b.id));
+      if (newBadges.length > 0) {
+        const badge = newBadges[0];
+        setCelebrationData({
+          type: 'badge',
+          title: `Distintivo Desbloqueado: ${badge.title}!`,
+          subtitle: badge.category,
+          description: badge.description,
+          xpBonus: result.xp_earned,
+        });
+      }
+    }
+
+    return result;
   };
 
   // Handle deleting an exercise log
   const handleDeleteLog = async (id: number) => {
     await api.deleteLog(id);
     const [updatedLogs, updatedStats] = await Promise.all([
-      api.getLogs(),
-      api.getProgressStats(),
+      api.getLogs(currentUser?.id),
+      api.getProgressStats(currentUser?.id),
     ]);
     setLogs(updatedLogs);
     setStats(updatedStats);
@@ -101,8 +169,8 @@ export default function App() {
 
   // Handle adding a reminder
   const handleAddReminder = async (data: Partial<Reminder>) => {
-    await api.addReminder(data);
-    const updated = await api.getReminders();
+    await api.addReminder(data, currentUser?.id);
+    const updated = await api.getReminders(currentUser?.id);
     setReminders(updated);
   };
 
@@ -122,7 +190,7 @@ export default function App() {
 
   // Handle updating patient profile
   const handleUpdatePatient = async (data: Partial<Patient>) => {
-    const updated = await api.updatePatient(data);
+    const updated = await api.updatePatient(data, currentUser?.id);
     setPatient(updated);
   };
 
@@ -143,6 +211,20 @@ export default function App() {
     }
   };
 
+  // Handle user authentication switch
+  const handleAuthSuccess = (user: User) => {
+    setCurrentUser(user);
+    if (user.role === 'fonoaudiologa') {
+      setCurrentTab('therapist');
+    } else {
+      setCurrentTab('exercises');
+    }
+  };
+
+  const handleLogout = () => {
+    setShowAuthModal(true);
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 antialiased selection:bg-teal-500 selection:text-white">
       {/* Universal Top Bar */}
@@ -156,8 +238,11 @@ export default function App() {
           }
         }}
         patient={patient}
+        currentUser={currentUser}
         onOpenProfile={() => setShowProfileModal(true)}
         onStartQuickExercise={handleStartQuickPractice}
+        onOpenAuth={() => setShowAuthModal(true)}
+        onLogout={handleLogout}
       />
 
       {/* Main Content Area */}
@@ -180,7 +265,7 @@ export default function App() {
         )}
 
         {/* Loading Spinner */}
-        {loading && !patient ? (
+        {loading && !patient && currentTab !== 'therapist' ? (
           <div className="flex flex-col items-center justify-center py-28 text-slate-500 space-y-3">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-teal-600"></div>
             <p className="text-sm font-semibold text-slate-700">
@@ -190,12 +275,32 @@ export default function App() {
           </div>
         ) : (
           <>
+            {/* View Tab: Área Exclusiva da Fonoaudióloga */}
+            {currentTab === 'therapist' && currentUser && (
+              <TherapistDashboard
+                currentUser={currentUser}
+                onSwitchToPatientView={() => setCurrentTab('exercises')}
+              />
+            )}
+
             {/* View Tab 1: Vocal Exercises Catalog */}
             {currentTab === 'exercises' && (
               <ExerciseCatalog
                 exercises={exercises}
+                patientLevel={patient?.level || 2}
+                isActivated={
+                  currentUser?.role === 'fonoaudiologa'
+                    ? true
+                    : (currentUser?.is_activated ?? false)
+                }
+                currentUser={currentUser}
                 onStartExercise={(ex) => setActiveExercise(ex)}
                 onOpenVault={() => setShowVaultModal(true)}
+                onActivateUser={(updated) => {
+                  setCurrentUser(updated);
+                  loadAppData();
+                }}
+                onOpenTherapistPanel={() => setCurrentTab('therapist')}
               />
             )}
 
@@ -245,10 +350,11 @@ export default function App() {
             </button>
             <span aria-hidden="true">·</span>
             <button
-              onClick={() => setShowProfileModal(true)}
-              className="hover:text-teal-700 transition-colors font-medium"
+              onClick={() => setShowAuthModal(true)}
+              className="hover:text-teal-700 transition-colors font-medium flex items-center gap-1"
             >
-              Relatório da Consulta
+              <KeyRound className="w-3.5 h-3.5" />
+              <span>Trocar de Usuário / Cadastrar</span>
             </button>
           </div>
         </div>
@@ -278,6 +384,19 @@ export default function App() {
           onUpdatePatient={handleUpdatePatient}
         />
       )}
+
+      {/* Celebration Modal (Framer Motion + Confetti + Fanfare) */}
+      <CelebrationModal
+        data={celebrationData}
+        onClose={() => setCelebrationData(null)}
+      />
+
+      {/* Authentication & Registration Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onAuthSuccess={handleAuthSuccess}
+      />
     </div>
   );
 }
