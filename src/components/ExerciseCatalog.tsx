@@ -24,6 +24,7 @@ import {
 import { Exercise, User } from '../types';
 import { DailyVocalTip } from './DailyVocalTip';
 import { ActivationCodePrompt } from './ActivationCodePrompt';
+import vocalAnatomyImg from '../assets/images/vocal_anatomy_guide_1793024499378.jpg';
 
 interface ExerciseCatalogProps {
   exercises: Exercise[];
@@ -150,7 +151,13 @@ export const ExerciseCatalog: React.FC<ExerciseCatalogProps> = ({
           <div className="lg:col-span-5 relative">
             <div className="relative rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm aspect-4/3 bg-slate-100 dark:bg-slate-800">
               <img
-                src="/src/assets/images/vocal_anatomy_guide_1793024499378.jpg"
+                src={vocalAnatomyImg}
+                onError={(e) => {
+                  const target = e.currentTarget as HTMLImageElement;
+                  if (!target.src.includes('/images/')) {
+                    target.src = '/images/vocal_anatomy_guide_1793024499378.jpg';
+                  }
+                }}
                 alt="Diagrama Anatômico das Pregas Vocais e Ressonadores"
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"

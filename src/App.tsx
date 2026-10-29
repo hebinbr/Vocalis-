@@ -110,10 +110,10 @@ export default function App() {
       setError(null);
     } catch (err: any) {
       console.warn('Initial load attempt notice:', err);
-      if (retryCount < 2) {
+      if (retryCount < 3) {
         setTimeout(() => {
           loadAppData(retryCount + 1);
-        }, 300 * (retryCount + 1));
+        }, 400 * (retryCount + 1));
         return;
       }
       setError('Conexão com o banco SQLite temporariamente indisponível.');

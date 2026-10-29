@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Reminder } from '../types';
 import { useVocalAudio } from '../hooks/useVocalAudio';
+import therapistAvatarImg from '../assets/images/avatar_therapist_1793024499041.jpg';
 
 interface RemindersManagerProps {
   reminders: Reminder[];
@@ -224,7 +225,13 @@ export const RemindersManager: React.FC<RemindersManagerProps> = ({
         <div className="md:col-span-3 flex justify-center">
           <div className="relative w-28 h-28 rounded-2xl overflow-hidden border-2 border-teal-400/40 shadow-md">
             <img
-              src="/src/assets/images/avatar_therapist_1793024499041.jpg"
+              src={therapistAvatarImg}
+              onError={(e) => {
+                const target = e.currentTarget as HTMLImageElement;
+                if (!target.src.includes('/images/')) {
+                  target.src = '/images/avatar_therapist_1793024499041.jpg';
+                }
+              }}
               alt="Dra. Beatriz Menezes - Fonoaudióloga"
               className="w-full h-full object-cover"
               referrerPolicy="no-referrer"

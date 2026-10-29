@@ -15,7 +15,7 @@ import {
  * Utilitário de requisição com auto-retry para garantir alta disponibilidade
  * com o backend local Python SQLite durante transições e requisições simultâneas.
  */
-async function fetchJsonWithRetry<T>(url: string, options?: RequestInit, maxAttempts = 3): Promise<T> {
+async function fetchJsonWithRetry<T>(url: string, options?: RequestInit, maxAttempts = 4): Promise<T> {
   let lastError: any = null;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -23,7 +23,7 @@ async function fetchJsonWithRetry<T>(url: string, options?: RequestInit, maxAtte
       if (!res.ok) {
         // Se status 502/503/504 (servidor ainda inicializando), tenta novamente
         if ([502, 503, 504].includes(res.status) && attempt < maxAttempts) {
-          await new Promise((r) => setTimeout(r, 150 * attempt));
+          await new Promise((r) => setTimeout(r, 200 * attempt));
           continue;
         }
         const errJson = await res.json().catch(() => null);
@@ -33,7 +33,7 @@ async function fetchJsonWithRetry<T>(url: string, options?: RequestInit, maxAtte
     } catch (err: any) {
       lastError = err;
       if (attempt < maxAttempts) {
-        await new Promise((r) => setTimeout(r, 150 * attempt));
+        await new Promise((r) => setTimeout(r, 200 * attempt));
       }
     }
   }
