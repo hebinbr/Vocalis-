@@ -268,6 +268,11 @@ def init_db():
     );
     """)
 
+    try:
+        cursor.execute("ALTER TABLE reminders ADD COLUMN user_id INTEGER")
+    except Exception:
+        pass
+
     # Tabela de Auditoria de Segurança
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS security_audit (

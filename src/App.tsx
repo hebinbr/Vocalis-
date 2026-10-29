@@ -79,8 +79,8 @@ export default function App() {
     }
   }, [currentUser]);
 
-  // Load initial app data from Python SQLite backend
-  const loadAppData = useCallback(async () => {
+  // Load initial app data from Python SQLite backend with graceful retry
+  const loadAppData = useCallback(async (retryCount = 0) => {
     try {
       setLoading(true);
       setError(null);
@@ -92,21 +92,38 @@ export default function App() {
         api.getProgressStats(currentUser?.id),
       ]);
 
-      setPatient(patientData);
-      setExercises(exercisesData);
-      setLogs(logsData);
-      setReminders(remindersData);
-      setStats(statsData);
+      if (patientData && patientData.name) {
+        setPatient(patientData);
+      }
+      if (Array.isArray(exercisesData) && exercisesData.length > 0) {
+        setExercises(exercisesData);
+      }
+      if (Array.isArray(logsData)) {
+        setLogs(logsData);
+      }
+      if (Array.isArray(remindersData)) {
+        setReminders(remindersData);
+      }
+      if (statsData) {
+        setStats(statsData);
+      }
+      setError(null);
     } catch (err: any) {
-      console.error('Error loading Vocalis app data:', err);
-      setError('Conectando ao backend Python e banco SQLite... Caso seja a primeira inicialização, tente recarregar.');
+      console.warn('Initial load attempt notice:', err);
+      if (retryCount < 2) {
+        setTimeout(() => {
+          loadAppData(retryCount + 1);
+        }, 300 * (retryCount + 1));
+        return;
+      }
+      setError('Conexão com o banco SQLite temporariamente indisponível.');
     } finally {
       setLoading(false);
     }
   }, [currentUser?.id]);
 
   useEffect(() => {
-    loadAppData();
+    loadAppData(0);
   }, [loadAppData]);
 
   // Handle saving an exercise log with gamification celebration rewards
@@ -255,7 +272,7 @@ export default function App() {
               <span>{error}</span>
             </div>
             <button
-              onClick={loadAppData}
+              onClick={() => loadAppData(0)}
               className="px-3 py-1.5 font-semibold bg-white border border-amber-300 rounded-lg hover:bg-amber-100 flex items-center gap-1 shrink-0"
             >
               <RefreshCw className="w-3.5 h-3.5" />

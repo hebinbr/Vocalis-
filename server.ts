@@ -12,8 +12,10 @@ const PYTHON_PORT = process.env.PYTHON_BACKEND_PORT || 5001;
 
 // Spawn Python backend process
 let pythonProcess: ChildProcess | null = null;
+let isShuttingDown = false;
 
 function startPythonBackend() {
+  if (isShuttingDown) return;
   const backendScript = path.join(__dirname, 'backend', 'server.py');
   console.log(`[Vocalis] Launching Python backend: python3 ${backendScript}`);
   
@@ -28,6 +30,10 @@ function startPythonBackend() {
 
   pythonProcess.on('exit', (code, signal) => {
     console.log(`[Vocalis] Python backend exited with code ${code}, signal ${signal}`);
+    if (!isShuttingDown) {
+      console.log('[Vocalis] Restarting Python backend in 1s...');
+      setTimeout(startPythonBackend, 1000);
+    }
   });
 }
 
@@ -35,10 +41,12 @@ startPythonBackend();
 
 // Clean up child process on exit
 process.on('SIGINT', () => {
+  isShuttingDown = true;
   if (pythonProcess) pythonProcess.kill('SIGINT');
   process.exit(0);
 });
 process.on('SIGTERM', () => {
+  isShuttingDown = true;
   if (pythonProcess) pythonProcess.kill('SIGTERM');
   process.exit(0);
 });
@@ -46,34 +54,44 @@ process.on('SIGTERM', () => {
 // Parse JSON request bodies
 app.use(express.json());
 
-// Proxy API requests to Python SQLite backend
+// Proxy API requests to Python SQLite backend with resilient retry
 app.all('/api/*', async (req: Request, res: Response) => {
   const pythonUrl = `http://127.0.0.1:${PYTHON_PORT}${req.originalUrl}`;
-  try {
-    const fetchOptions: RequestInit = {
-      method: req.method,
-      headers: {
-        'Content-Type': req.headers['content-type'] || 'application/json',
-      },
-    };
+  const maxAttempts = 3;
 
-    if (['POST', 'PUT', 'PATCH'].includes(req.method) && req.body) {
-      fetchOptions.body = JSON.stringify(req.body);
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const fetchOptions: RequestInit = {
+        method: req.method,
+        headers: {
+          'Content-Type': req.headers['content-type'] || 'application/json',
+          'Connection': 'close',
+        },
+      };
+
+      if (['POST', 'PUT', 'PATCH'].includes(req.method) && req.body) {
+        fetchOptions.body = JSON.stringify(req.body);
+      }
+
+      const pyRes = await fetch(pythonUrl, fetchOptions);
+      const contentType = pyRes.headers.get('content-type') || 'application/json';
+      res.status(pyRes.status);
+      res.setHeader('Content-Type', contentType);
+
+      const data = await pyRes.text();
+      return res.send(data);
+    } catch (err: any) {
+      if (attempt < maxAttempts) {
+        // Wait 150ms and retry
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      } else {
+        console.error(`[Vocalis Proxy Error] Failed to reach Python backend at ${pythonUrl} after ${maxAttempts} attempts:`, err.message);
+        return res.status(502).json({
+          error: 'Backend Python em inicialização ou indisponível',
+          details: err.message
+        });
+      }
     }
-
-    const pyRes = await fetch(pythonUrl, fetchOptions);
-    const contentType = pyRes.headers.get('content-type') || 'application/json';
-    res.status(pyRes.status);
-    res.setHeader('Content-Type', contentType);
-
-    const data = await pyRes.text();
-    res.send(data);
-  } catch (err: any) {
-    console.error(`[Vocalis Proxy Error] Failed to reach Python backend at ${pythonUrl}:`, err.message);
-    res.status(502).json({
-      error: 'Backend Python em inicialização ou indisponível',
-      details: err.message
-    });
   }
 });
 

@@ -6,7 +6,7 @@ Conecta a interface do paciente e da fonoaudióloga com o banco SQLite criptogra
 import sys
 import os
 import json
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from datetime import date, timedelta
 
@@ -25,6 +25,7 @@ class VocalisAPIHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        self.send_header("Connection", "close")
         self.end_headers()
 
     def do_OPTIONS(self):
@@ -329,8 +330,10 @@ class VocalisAPIHandler(BaseHTTPRequestHandler):
 def run():
     db.init_db()
     server_address = ("127.0.0.1", PORT)
-    httpd = HTTPServer(server_address, VocalisAPIHandler)
-    print(f"[Vocalis Python Backend] Running on http://127.0.0.1:{PORT}")
+    ThreadingHTTPServer.allow_reuse_address = True
+    httpd = ThreadingHTTPServer(server_address, VocalisAPIHandler)
+    httpd.daemon_threads = True
+    print(f"[Vocalis Python Backend] Running multi-threaded on http://127.0.0.1:{PORT}")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
