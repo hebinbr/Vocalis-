@@ -243,7 +243,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 antialiased selection:bg-teal-500 selection:text-white">
+    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 antialiased selection:bg-teal-500 selection:text-white transition-colors duration-200">
       {/* Universal Top Bar */}
       <Header
         currentTab={currentTab}
@@ -266,14 +266,14 @@ export default function App() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-20">
         {/* Error / Offline Notice with Reconnect */}
         {error && (
-          <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex items-center justify-between gap-4 text-xs">
+          <div className="mb-6 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 flex items-center justify-between gap-4 text-xs">
             <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+              <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
               <span>{error}</span>
             </div>
             <button
               onClick={() => loadAppData(0)}
-              className="px-3 py-1.5 font-semibold bg-white border border-amber-300 rounded-lg hover:bg-amber-100 flex items-center gap-1 shrink-0"
+              className="px-3 py-1.5 font-semibold bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-900 dark:text-amber-200 flex items-center gap-1 shrink-0"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Tentar Novamente</span>
@@ -283,12 +283,12 @@ export default function App() {
 
         {/* Loading Spinner */}
         {loading && !patient && currentTab !== 'therapist' ? (
-          <div className="flex flex-col items-center justify-center py-28 text-slate-500 space-y-3">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-teal-600"></div>
-            <p className="text-sm font-semibold text-slate-700">
+          <div className="flex flex-col items-center justify-center py-28 text-slate-500 dark:text-slate-400 space-y-3">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-teal-600 dark:border-teal-400"></div>
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
               Iniciando Vocalis & Conectando ao Banco SQLite Criptografado...
             </p>
-            <p className="text-xs text-slate-400">Derivando chaves PBKDF2 e validando registros</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500">Derivando chaves PBKDF2 e validando registros</p>
           </div>
         ) : (
           <>
@@ -346,29 +346,29 @@ export default function App() {
       </main>
 
       {/* Footer with Minimalist Clinical Assurance */}
-      <footer className="border-t border-slate-200/80 bg-white py-6 text-xs text-slate-500">
+      <footer className="border-t border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 py-6 text-xs text-slate-500 dark:text-slate-400 transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-            <span className="font-semibold text-slate-700">Vocalis Fonoaudiologia</span>
+            <span className="font-semibold text-slate-700 dark:text-slate-300">Vocalis Fonoaudiologia</span>
             <span>·</span>
             <span>SQLite Local Criptografado (AES-256 / PBKDF2)</span>
             <span>·</span>
             <span>Backend Python 3</span>
           </div>
 
-          <div className="flex items-center gap-4 text-slate-500">
+          <div className="flex items-center gap-4 text-slate-500 dark:text-slate-400">
             <button
               onClick={() => setShowVaultModal(true)}
-              className="hover:text-teal-700 transition-colors flex items-center gap-1 font-medium"
+              className="hover:text-teal-700 dark:hover:text-teal-400 transition-colors flex items-center gap-1 font-medium"
             >
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               <span>Verificação de Criptografia LGPD</span>
             </button>
             <span aria-hidden="true">·</span>
             <button
               onClick={() => setShowAuthModal(true)}
-              className="hover:text-teal-700 transition-colors font-medium flex items-center gap-1"
+              className="hover:text-teal-700 dark:hover:text-teal-400 transition-colors font-medium flex items-center gap-1"
             >
               <KeyRound className="w-3.5 h-3.5" />
               <span>Trocar de Usuário / Cadastrar</span>

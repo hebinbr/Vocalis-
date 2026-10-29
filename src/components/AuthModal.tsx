@@ -63,24 +63,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     if (password.length >= 10) score += 1;
 
     let label = 'Muito Fraca';
-    let colorClass = 'bg-rose-500 text-rose-700';
+    let colorClass = 'bg-rose-500 text-rose-700 dark:text-rose-400';
     let percentage = 20;
 
     if (score === 2) {
       label = 'Fraca';
-      colorClass = 'bg-amber-500 text-amber-700';
+      colorClass = 'bg-amber-500 text-amber-700 dark:text-amber-400';
       percentage = 40;
     } else if (score === 3) {
       label = 'Média';
-      colorClass = 'bg-yellow-500 text-yellow-700';
+      colorClass = 'bg-yellow-500 text-yellow-700 dark:text-yellow-400';
       percentage = 60;
     } else if (score === 4) {
       label = 'Forte';
-      colorClass = 'bg-teal-500 text-teal-700';
+      colorClass = 'bg-teal-500 text-teal-700 dark:text-teal-400';
       percentage = 80;
     } else if (score >= 5) {
       label = 'Excelente & Segura';
-      colorClass = 'bg-emerald-600 text-emerald-800';
+      colorClass = 'bg-emerald-600 text-emerald-800 dark:text-emerald-400';
       percentage = 100;
     }
 
@@ -130,7 +130,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         resetForm();
       }, 400);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Erro ao realizar login.');
+      setErrorMsg(err.message || 'E-mail ou senha incorretos.');
     } finally {
       setLoading(false);
     }
@@ -138,13 +138,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   const handleRegisterPatient = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !email.trim() || !password) {
-      setErrorMsg('Por favor, preencha nome, e-mail e senha.');
+    if (!name || !email || !password) {
+      setErrorMsg('Preencha todos os campos obrigatórios.');
       return;
     }
 
     if (password !== confirmPassword) {
-      setErrorMsg('As senhas não coincidem. Verifique a confirmação.');
+      setErrorMsg('A confirmação da senha não confere com a senha digitada.');
       return;
     }
 
@@ -164,14 +164,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         activation_code: activationCode.trim() || undefined,
       });
 
-      setSuccessMsg(res.message);
+      setSuccessMsg(res.message || 'Cadastro realizado com sucesso!');
       setTimeout(() => {
         onAuthSuccess(res.user);
         onClose();
         resetForm();
       }, 500);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Erro no cadastro de paciente.');
+      setErrorMsg(err.message || 'Erro ao realizar cadastro do paciente.');
     } finally {
       setLoading(false);
     }
@@ -179,18 +179,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   const handleRegisterTherapist = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !email.trim() || !phone.trim() || !password) {
-      setErrorMsg('Por favor, preencha nome, telefone, e-mail e senha.');
+    if (!name || !email || !password || !phone) {
+      setErrorMsg('Preencha nome, e-mail, telefone e senha.');
       return;
     }
 
     if (password !== confirmPassword) {
-      setErrorMsg('As senhas digitadas não coincidem.');
+      setErrorMsg('A confirmação da senha não confere com a senha digitada.');
       return;
     }
 
     if (password.length < 6) {
-      setErrorMsg('A senha deve possuir pelo menos 6 caracteres.');
+      setErrorMsg('A senha precisa ter no mínimo 6 caracteres.');
       return;
     }
 
@@ -238,33 +238,33 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-200 relative my-8">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-200 dark:border-slate-800 relative my-8 transition-colors">
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
+          className="absolute top-5 right-5 p-2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
 
         {/* Modal Header */}
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-teal-600 text-white flex items-center justify-center font-bold text-xl shadow-md">
+          <div className="w-12 h-12 rounded-2xl bg-teal-600 dark:bg-teal-500 text-white flex items-center justify-center font-bold text-xl shadow-md">
             V
           </div>
           <div>
-            <h2 className="text-xl sm:text-2xl font-black text-slate-900 font-display">
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 font-display">
               Acesso ao Vocalis
             </h2>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Prontuário e reabilitação vocal criptografados no SQLite
             </p>
           </div>
         </div>
 
         {/* Mode Selector Tabs */}
-        <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 rounded-2xl mb-6 text-xs font-semibold">
+        <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl mb-6 text-xs font-semibold">
           <button
             type="button"
             onClick={() => {
@@ -273,8 +273,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             }}
             className={`py-2 px-2 rounded-xl transition-all ${
               mode === 'login'
-                ? 'bg-white text-slate-900 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
             Entrar
@@ -287,8 +287,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             }}
             className={`py-2 px-2 rounded-xl transition-all ${
               mode === 'register_patient'
-                ? 'bg-white text-teal-800 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-white dark:bg-slate-700 text-teal-800 dark:text-teal-300 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
             Sou Paciente
@@ -301,8 +301,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             }}
             className={`py-2 px-2 rounded-xl transition-all ${
               mode === 'register_therapist'
-                ? 'bg-white text-teal-800 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-white dark:bg-slate-700 text-teal-800 dark:text-teal-300 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
             Fonoaudióloga
@@ -311,14 +311,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         {/* Error / Success Notifications */}
         {errorMsg && (
-          <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+          <div className="mb-4 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-800 dark:text-rose-200 flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
             <span>{errorMsg}</span>
           </div>
         )}
         {successMsg && (
-          <div className="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-start gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+          <div className="mb-4 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-200 flex items-start gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
             <span>{successMsg}</span>
           </div>
         )}
@@ -327,7 +327,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {mode === 'login' && (
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                 E-mail
               </label>
               <div className="relative">
@@ -338,13 +338,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="seu.email@exemplo.com"
-                  className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                 Senha
               </label>
               <div className="relative">
@@ -355,12 +355,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Sua senha secreta"
-                  className="w-full pl-10 pr-10 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  className="w-full pl-10 pr-10 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
+                  className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -370,31 +370,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold text-xs sm:text-sm transition-all shadow-md active:scale-98 disabled:opacity-50"
+              className="w-full py-3 bg-teal-600 hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600 text-white rounded-xl font-bold text-xs sm:text-sm transition-all shadow-md active:scale-98 disabled:opacity-50"
             >
               {loading ? 'Entrando...' : 'Entrar no Aplicativo'}
             </button>
 
             {/* Quick Demo Access Bar */}
-            <div className="pt-4 border-t border-slate-100">
-              <span className="text-[11px] font-semibold text-slate-600 block text-center mb-2">
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
+              <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block text-center mb-2">
                 Acesso Rápido para Demonstração:
               </span>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => handleQuickLogin('paciente')}
-                  className="p-2.5 text-xs font-semibold rounded-xl border border-teal-200 bg-teal-50 hover:bg-teal-100 text-teal-900 transition-colors flex items-center justify-center gap-1.5"
+                  className="p-2.5 text-xs font-semibold rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 dark:hover:bg-teal-900/60 text-teal-900 dark:text-teal-200 transition-colors flex items-center justify-center gap-1.5"
                 >
-                  <UserIcon className="w-3.5 h-3.5 text-teal-600" />
+                  <UserIcon className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
                   <span>Paciente (Camila)</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleQuickLogin('fonoaudiologa')}
-                  className="p-2.5 text-xs font-semibold rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 transition-colors flex items-center justify-center gap-1.5"
+                  className="p-2.5 text-xs font-semibold rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-900 dark:text-indigo-200 transition-colors flex items-center justify-center gap-1.5"
                 >
-                  <Stethoscope className="w-3.5 h-3.5 text-indigo-600" />
+                  <Stethoscope className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                   <span>Dra. Beatriz (Fono)</span>
                 </button>
               </div>
@@ -406,7 +406,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {mode === 'register_patient' && (
           <form onSubmit={handleRegisterPatient} className="space-y-3.5">
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                 Nome Completo
               </label>
               <div className="relative">
@@ -417,13 +417,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Ex: João da Silva"
-                  className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                 E-mail
               </label>
               <div className="relative">
@@ -434,14 +434,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="joao@email.com"
-                  className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
               </div>
             </div>
 
             {/* Senha */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                 Senha
               </label>
               <div className="relative">
@@ -452,12 +452,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Crie sua senha segura"
-                  className="w-full pl-10 pr-10 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full pl-10 pr-10 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
+                  className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -466,7 +466,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
             {/* Confirmar Senha */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                 Confirmar a Senha
               </label>
               <div className="relative">
@@ -477,23 +477,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Digite a senha novamente"
-                  className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
               </div>
             </div>
 
             {/* Real-time Password Strength Feedback Component */}
             {password.length > 0 && (
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl space-y-2">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-700">Força da Senha:</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-300">Força da Senha:</span>
                   <span className={`font-bold ${passwordCriteria.colorClass}`}>
                     {passwordCriteria.label}
                   </span>
                 </div>
 
                 {/* Progress bar */}
-                <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                   <div
                     className={`h-full transition-all duration-300 ${
                       passwordCriteria.score <= 1
@@ -516,9 +516,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     {passwordCriteria.hasMinLength ? (
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                     ) : (
-                      <XCircle className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                      <XCircle className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 shrink-0" />
                     )}
-                    <span className={passwordCriteria.hasMinLength ? 'text-slate-800 font-medium' : 'text-slate-600'}>
+                    <span className={passwordCriteria.hasMinLength ? 'text-slate-800 dark:text-slate-200 font-medium' : 'text-slate-600 dark:text-slate-400'}>
                       Mínimo 6 caracteres
                     </span>
                   </div>
@@ -527,9 +527,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     {passwordCriteria.hasNumber ? (
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                     ) : (
-                      <XCircle className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                      <XCircle className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 shrink-0" />
                     )}
-                    <span className={passwordCriteria.hasNumber ? 'text-slate-800 font-medium' : 'text-slate-600'}>
+                    <span className={passwordCriteria.hasNumber ? 'text-slate-800 dark:text-slate-200 font-medium' : 'text-slate-600 dark:text-slate-400'}>
                       Pelo menos 1 número
                     </span>
                   </div>
@@ -538,9 +538,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     {passwordCriteria.hasUpper && passwordCriteria.hasLower ? (
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                     ) : (
-                      <XCircle className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                      <XCircle className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 shrink-0" />
                     )}
-                    <span className={passwordCriteria.hasUpper && passwordCriteria.hasLower ? 'text-slate-800 font-medium' : 'text-slate-600'}>
+                    <span className={passwordCriteria.hasUpper && passwordCriteria.hasLower ? 'text-slate-800 dark:text-slate-200 font-medium' : 'text-slate-600 dark:text-slate-400'}>
                       Maiúscula e minúscula
                     </span>
                   </div>
@@ -549,9 +549,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     {passwordCriteria.matchesConfirm ? (
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                     ) : (
-                      <XCircle className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                      <XCircle className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 shrink-0" />
                     )}
-                    <span className={passwordCriteria.matchesConfirm ? 'text-emerald-700 font-bold' : 'text-slate-600'}>
+                    <span className={passwordCriteria.matchesConfirm ? 'text-emerald-700 dark:text-emerald-400 font-bold' : 'text-slate-600 dark:text-slate-400'}>
                       {confirmPassword ? (passwordCriteria.matchesConfirm ? 'Senhas conferem' : 'Senhas diferentes') : 'Aguardando confirmação'}
                     </span>
                   </div>
@@ -560,12 +560,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             )}
 
             {/* Código da Fonoaudióloga */}
-            <div className="p-3 bg-teal-50/70 border border-teal-200/80 rounded-xl space-y-1">
-              <label className="block text-xs font-bold text-teal-900 flex items-center gap-1.5">
-                <KeyRound className="w-3.5 h-3.5 text-teal-700" />
+            <div className="p-3 bg-teal-50/70 dark:bg-teal-950/40 border border-teal-200/80 dark:border-teal-800 rounded-xl space-y-1">
+              <label className="block text-xs font-bold text-teal-900 dark:text-teal-300 flex items-center gap-1.5">
+                <KeyRound className="w-3.5 h-3.5 text-teal-700 dark:text-teal-400" />
                 <span>Código da Fonoaudióloga (Opcional agora)</span>
               </label>
-              <p className="text-[11px] text-teal-800 leading-normal">
+              <p className="text-[11px] text-teal-800 dark:text-teal-300/80 leading-normal">
                 Você pode inserir o código gerado pela sua fonoaudióloga agora ou quando for iniciar os exercícios vocais.
               </p>
               <input
@@ -573,14 +573,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 value={activationCode}
                 onChange={(e) => setActivationCode(e.target.value.toUpperCase())}
                 placeholder="Ex: VOCA-2026"
-                className="w-full uppercase font-mono tracking-wider px-3 py-2 text-xs rounded-lg border border-teal-200 bg-white focus:outline-none focus:ring-2 focus:ring-teal-600"
+                className="w-full uppercase font-mono tracking-wider px-3 py-2 text-xs rounded-lg border border-teal-200 dark:border-teal-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-600"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading || (password.length > 0 && !passwordCriteria.matchesConfirm)}
-              className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold text-xs sm:text-sm transition-all shadow-md active:scale-98 disabled:opacity-50"
+              className="w-full py-3 bg-teal-600 hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600 text-white rounded-xl font-bold text-xs sm:text-sm transition-all shadow-md active:scale-98 disabled:opacity-50"
             >
               {loading ? 'Cadastrando...' : 'Finalizar Cadastro de Paciente'}
             </button>
@@ -591,7 +591,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {mode === 'register_therapist' && (
           <form onSubmit={handleRegisterTherapist} className="space-y-3.5">
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                 Nome da Profissional
               </label>
               <div className="relative">
@@ -602,13 +602,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Ex: Dra. Mariana Vasconcelos"
-                  className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                 Telefone de Contato
               </label>
               <div className="relative">
@@ -619,13 +619,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="(11) 98765-4321"
-                  className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                 E-mail Profissional
               </label>
               <div className="relative">
@@ -636,14 +636,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="dra.mariana@clinica.com.br"
-                  className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
               </div>
             </div>
 
             {/* Senha Fono */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                 Senha de Acesso
               </label>
               <div className="relative">
@@ -654,12 +654,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Crie uma senha forte"
-                  className="w-full pl-10 pr-10 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full pl-10 pr-10 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
+                  className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -668,7 +668,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
             {/* Confirmação Senha Fono */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                 Confirmação da Senha
               </label>
               <div className="relative">
@@ -679,22 +679,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirme a senha da fonoaudióloga"
-                  className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
               </div>
             </div>
 
             {/* Feedback em tempo real sobre a senha */}
             {password.length > 0 && (
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl space-y-2">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-700">Validação da Senha:</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-300">Validação da Senha:</span>
                   <span className={`font-bold ${passwordCriteria.colorClass}`}>
                     {passwordCriteria.label}
                   </span>
                 </div>
 
-                <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                   <div
                     className={`h-full transition-all duration-300 ${
                       passwordCriteria.score <= 1
@@ -716,9 +716,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     {passwordCriteria.hasMinLength ? (
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                     ) : (
-                      <XCircle className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                      <XCircle className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 shrink-0" />
                     )}
-                    <span className={passwordCriteria.hasMinLength ? 'text-slate-800 font-medium' : 'text-slate-600'}>
+                    <span className={passwordCriteria.hasMinLength ? 'text-slate-800 dark:text-slate-200 font-medium' : 'text-slate-600 dark:text-slate-400'}>
                       Mínimo 6 dígitos
                     </span>
                   </div>
@@ -727,9 +727,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     {passwordCriteria.matchesConfirm ? (
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                     ) : (
-                      <XCircle className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                      <XCircle className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 shrink-0" />
                     )}
-                    <span className={passwordCriteria.matchesConfirm ? 'text-emerald-700 font-bold' : 'text-slate-600'}>
+                    <span className={passwordCriteria.matchesConfirm ? 'text-emerald-700 dark:text-emerald-400 font-bold' : 'text-slate-600 dark:text-slate-400'}>
                       {confirmPassword ? (passwordCriteria.matchesConfirm ? 'Senhas conferem' : 'Senhas diferentes') : 'Aguardando confirmação'}
                     </span>
                   </div>
@@ -737,8 +737,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
             )}
 
-            <div className="p-3 rounded-xl bg-indigo-50/70 border border-indigo-200 text-xs text-indigo-900 flex items-start gap-2">
-              <ShieldCheck className="w-4 h-4 text-indigo-700 shrink-0 mt-0.5" />
+            <div className="p-3 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-xs text-indigo-900 dark:text-indigo-200 flex items-start gap-2">
+              <ShieldCheck className="w-4 h-4 text-indigo-700 dark:text-indigo-400 shrink-0 mt-0.5" />
               <span>
                 Após o cadastro, você terá acesso imediato ao painel clínico com gerador de códigos de acesso e prontuários dos pacientes.
               </span>
@@ -747,7 +747,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <button
               type="submit"
               disabled={loading || (password.length > 0 && !passwordCriteria.matchesConfirm)}
-              className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold text-xs sm:text-sm transition-all shadow-md active:scale-98 disabled:opacity-50"
+              className="w-full py-3 bg-teal-600 hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600 text-white rounded-xl font-bold text-xs sm:text-sm transition-all shadow-md active:scale-98 disabled:opacity-50"
             >
               {loading ? 'Cadastrando...' : 'Concluir Cadastro de Fonoaudióloga'}
             </button>
