@@ -149,20 +149,42 @@ export const ExerciseCatalog: React.FC<ExerciseCatalogProps> = ({
           </div>
 
           <div className="lg:col-span-5 relative">
-            <div className="relative rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm aspect-4/3 bg-slate-100 dark:bg-slate-800">
+            <div className="relative rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm aspect-4/3 bg-slate-900">
               <img
                 src={vocalAnatomyImg}
                 onError={(e) => {
                   const target = e.currentTarget as HTMLImageElement;
                   if (!target.src.includes('/images/')) {
                     target.src = '/images/vocal_anatomy_guide_1793024499378.jpg';
+                  } else if (!target.src.includes('/assets/images/')) {
+                    target.src = '/assets/images/vocal_anatomy_guide_1793024499378.jpg';
+                  } else {
+                    target.style.display = 'none';
+                    const fallback = target.parentElement?.querySelector('.vocalis-svg-fallback');
+                    if (fallback) (fallback as HTMLElement).style.display = 'flex';
                   }
                 }}
                 alt="Diagrama Anatômico das Pregas Vocais e Ressonadores"
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent flex items-end p-4">
+              <div className="vocalis-svg-fallback hidden w-full h-full bg-gradient-to-br from-slate-950 via-teal-950 to-slate-900 flex-col items-center justify-center p-6 text-center">
+                <svg className="w-20 h-20 text-teal-400 mb-2 drop-shadow-md" viewBox="0 0 100 100" fill="none" stroke="currentColor">
+                  <circle cx="50" cy="50" r="42" strokeWidth="2" strokeDasharray="4 2" className="text-teal-600/40" />
+                  <path d="M25 35 Q50 60 75 35 Q50 48 25 35 Z" fill="rgba(45, 212, 191, 0.25)" stroke="#2dd4bf" strokeWidth="2.5" />
+                  <path d="M25 65 Q50 40 75 65 Q50 52 25 65 Z" fill="rgba(45, 212, 191, 0.25)" stroke="#2dd4bf" strokeWidth="2.5" />
+                  <line x1="50" y1="20" x2="50" y2="80" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="2 2" />
+                  <path d="M15 50 Q10 40 15 30" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" />
+                  <path d="M85 50 Q90 40 85 30" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+                <div className="text-teal-200 font-bold text-xs uppercase tracking-wider">
+                  Anatomia Glótica & Ressonadores
+                </div>
+                <div className="text-slate-400 text-[11px] mt-1">
+                  Equilíbrio aerodinâmico e fonação livre de esforço
+                </div>
+              </div>
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent flex items-end p-4 pointer-events-none">
                 <div className="text-white text-xs">
                   <div className="font-bold">Mecanismo de Ressonância & Fonação</div>
                   <div className="text-slate-200 text-[11px]">

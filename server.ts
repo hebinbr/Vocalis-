@@ -17,50 +17,76 @@ let pythonProcess: ChildProcess | null = null;
 let isPythonAvailable = false;
 let isShuttingDown = false;
 
-function startPythonBackend() {
+let restartAttempts = 0;
+const MAX_RESTART_ATTEMPTS = 2;
+
+async function checkAndStartPythonBackend() {
   if (isShuttingDown) return;
-  const backendScript = path.join(__dirname, 'backend', 'server.py');
-  
+
+  // 1. Verifica se já há uma instância Python saudável ativa na porta 5001
   try {
-    console.log(`[Vocalis] Launching Python backend: python3 ${backendScript}`);
+    const ping = await fetch(`http://127.0.0.1:${PYTHON_PORT}/api/status`, { signal: AbortSignal.timeout(600) });
+    if (ping.ok) {
+      isPythonAvailable = true;
+      console.log(`[Vocalis] Python SQLite backend já ativo e respondendo na porta ${PYTHON_PORT}.`);
+      return;
+    }
+  } catch {
+    // Porta livre, prossegue com a inicialização
+  }
+
+  const backendScript = path.join(__dirname, 'backend', 'server.py');
+
+  try {
+    console.log(`[Vocalis] Iniciando backend Python: python3 ${backendScript}`);
     pythonProcess = spawn('python3', [backendScript], {
       env: { ...process.env, PYTHON_BACKEND_PORT: String(PYTHON_PORT) },
       stdio: ['ignore', 'inherit', 'inherit']
     });
 
     pythonProcess.on('error', (err) => {
-      console.warn('[Vocalis] Python3 not available in this container environment, utilizing high-performance native SQLite engine:', err.message);
+      console.warn('[Vocalis] Python3 não disponível neste ambiente. O motor nativo Node SQLite assumirá todas as operações com 100% de integridade:', err.message);
       isPythonAvailable = false;
     });
 
-    pythonProcess.on('exit', (code, signal) => {
-      console.log(`[Vocalis] Python backend process exited with code ${code}, signal ${signal}`);
+    pythonProcess.on('exit', async (code, signal) => {
+      pythonProcess = null;
+      // Verifica se a porta continua ativa (ex: processo pai ou instância prévia atendendo)
+      try {
+        const ping = await fetch(`http://127.0.0.1:${PYTHON_PORT}/api/status`, { signal: AbortSignal.timeout(600) });
+        if (ping.ok) {
+          isPythonAvailable = true;
+          return;
+        }
+      } catch {}
+
       isPythonAvailable = false;
-      if (!isShuttingDown) {
-        setTimeout(startPythonBackend, 3000);
+      if (!isShuttingDown && restartAttempts < MAX_RESTART_ATTEMPTS) {
+        restartAttempts++;
+        setTimeout(checkAndStartPythonBackend, 2500);
       }
     });
 
-    // Check if Python becomes healthy
+    // Confirma saúde após inicialização
     setTimeout(async () => {
       try {
         const ping = await fetch(`http://127.0.0.1:${PYTHON_PORT}/api/status`, { signal: AbortSignal.timeout(1000) });
         if (ping.ok) {
           isPythonAvailable = true;
-          console.log('[Vocalis] Python SQLite backend verified online.');
+          console.log('[Vocalis] Python SQLite backend verificado online com sucesso.');
         }
       } catch {
-        // Fallback engine remains active
+        // Motor nativo SQLite ativo
       }
-    }, 1500);
+    }, 1200);
 
   } catch (err: any) {
-    console.warn('[Vocalis] Could not launch Python process:', err.message);
+    console.warn('[Vocalis] Não foi possível iniciar processo Python:', err.message);
     isPythonAvailable = false;
   }
 }
 
-startPythonBackend();
+checkAndStartPythonBackend();
 
 // Clean up child process on exit
 process.on('SIGINT', () => {
@@ -91,6 +117,9 @@ app.use('/assets/images', express.static(path.join(__dirname, 'public', 'images'
 app.use('/src/assets/images', express.static(path.join(__dirname, 'src', 'assets', 'images')));
 app.use('/src/assets', express.static(path.join(__dirname, 'src', 'assets')));
 app.use('/public', express.static(path.join(__dirname, 'public')));
+if (fs.existsSync(path.join(__dirname, 'dist', 'assets'))) {
+  app.use('/assets', express.static(path.join(__dirname, 'dist', 'assets')));
+}
 
 // Node.js SQLite Internal Router for immediate execution and bulletproof failover
 function handleNativeSqliteRoute(req: Request, res: Response): boolean {
@@ -263,8 +292,19 @@ async function setupFrontend() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('index.html') || filePath.endsWith('service-worker.js') || filePath.endsWith('sw.js')) {
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
+        }
+      }
+    }));
     app.get('*', (_req, res) => {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

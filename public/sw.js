@@ -1,4 +1,2 @@
-/**
- * Vocalis - sw.js alias to service-worker.js
- */
+// Alias para /service-worker.js
 importScripts('/service-worker.js');

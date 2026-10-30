@@ -248,19 +248,31 @@ export const RemindersManager: React.FC<RemindersManagerProps> = ({
       {/* Clinician Advice & Vocal Hygiene Box */}
       <div className="bg-teal-900 dark:bg-teal-950 text-white p-6 md:p-8 rounded-3xl shadow-sm grid grid-cols-1 md:grid-cols-12 gap-6 items-center border border-teal-800/80 dark:border-teal-900">
         <div className="md:col-span-3 flex justify-center">
-          <div className="relative w-28 h-28 rounded-2xl overflow-hidden border-2 border-teal-400/40 shadow-md">
+          <div className="relative w-28 h-28 rounded-2xl overflow-hidden border-2 border-teal-400/40 shadow-md bg-teal-950 flex items-center justify-center">
             <img
               src={therapistAvatarImg}
               onError={(e) => {
                 const target = e.currentTarget as HTMLImageElement;
                 if (!target.src.includes('/images/')) {
                   target.src = '/images/avatar_therapist_1793024499041.jpg';
+                } else if (!target.src.includes('/assets/images/')) {
+                  target.src = '/assets/images/avatar_therapist_1793024499041.jpg';
+                } else {
+                  target.style.display = 'none';
+                  const fallback = target.parentElement?.querySelector('.therapist-svg-fallback');
+                  if (fallback) (fallback as HTMLElement).style.display = 'flex';
                 }
               }}
               alt="Dra. Beatriz Menezes - Fonoaudióloga"
               className="w-full h-full object-cover"
               referrerPolicy="no-referrer"
             />
+            <div className="therapist-svg-fallback hidden w-full h-full bg-gradient-to-br from-teal-800 to-teal-950 flex-col items-center justify-center text-teal-200">
+              <svg className="w-14 h-14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+              </svg>
+              <span className="text-[9px] font-bold uppercase tracking-wider text-teal-300">CRFa 2-19842</span>
+            </div>
           </div>
         </div>
 

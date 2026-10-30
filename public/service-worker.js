@@ -1,10 +1,9 @@
 /**
  * Vocalis - Service Worker PWA (service-worker.js)
- * Gerencia cache de recursos estáticos, suporte offline e persistência
- * de notificações push mesmo após o fechamento da aba.
+ * Versão v10: Network-First com limpeza ativa de caches legados e suporte offline.
  */
 
-const CACHE_NAME = 'vocalis-cache-v2';
+const CACHE_NAME = 'vocalis-cache-v10';
 
 const STATIC_ASSETS = [
   '/',
@@ -15,20 +14,19 @@ const STATIC_ASSETS = [
   '/reminder-worker.js'
 ];
 
-// Instalação do Service Worker e pré-cache de ativos essenciais
+// Instalação do Service Worker com ativação imediata
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[Vocalis SW] Pré-armazenando ativos estáticos no cache:', CACHE_NAME);
       return cache.addAll(STATIC_ASSETS).catch((err) => {
-        console.warn('[Vocalis SW] Aviso ao pré-carregar alguns ativos:', err);
+        console.warn('[Vocalis SW] Aviso no pré-cache:', err);
       });
     })
   );
 });
 
-// Ativação do Service Worker: limpa caches antigos e assume controle imediato
+// Ativação: Limpa TODOS os caches antigos e assume controle imediato
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -36,17 +34,23 @@ self.addEventListener('activate', (event) => {
         cacheNames
           .filter((name) => name !== CACHE_NAME)
           .map((name) => {
-            console.log('[Vocalis SW] Removendo cache obsoleto:', name);
+            console.log('[Vocalis SW] Purgando cache obsoleto:', name);
             return caches.delete(name);
           })
       );
-    }).then(() => self.clients.claim())
+    }).then(async () => {
+      await self.clients.claim();
+      // Notifica todas as abas abertas para recarregar o bundle atualizado
+      const allClients = await self.clients.matchAll({ type: 'window' });
+      for (const client of allClients) {
+        client.postMessage({ type: 'SW_UPDATED', version: CACHE_NAME });
+      }
+    })
   );
 });
 
-// Interceptação de requisições:
-// - Para /api/*: Network-First (rede primeiro, com fallback transparente)
-// - Para recursos estáticos: Cache-First / Stale-While-Revalidate
+// Estratégia Network-First: Sempre busca a versão mais recente na rede.
+// Se estiver offline ou a conexão cair, recorre ao cache local.
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
@@ -56,61 +60,50 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Rotas de API do backend: Network-First com cache de leitura se rede falhar
-  if (url.pathname.startsWith('/api/')) {
-    event.respondWith(
-      fetch(request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const responseClone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, responseClone);
-            });
-          }
-          return networkResponse;
-        })
-        .catch(async () => {
-          const cachedResponse = await caches.match(request);
-          if (cachedResponse) {
-            console.log('[Vocalis SW] Fornecendo resposta em cache offline para:', url.pathname);
-            return cachedResponse;
-          }
-          return new Response(JSON.stringify({ error: 'Offline', offline: true }), {
-            status: 503,
-            headers: { 'Content-Type': 'application/json' }
-          });
-        })
-    );
+  // Ignora extensões de navegador
+  if (!url.protocol.startsWith('http')) {
     return;
   }
 
-  // Ativos estáticos e navegação: Stale-While-Revalidate
+  // Network-First para todas as requisições (APIs, HTML, JS, CSS e imagens)
   event.respondWith(
-    caches.match(request).then((cachedResponse) => {
-      const fetchPromise = fetch(request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-            const responseClone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, responseClone);
-            });
-          }
-          return networkResponse;
-        })
-        .catch(() => {
-          // Se for requisição de navegação (HTML) e rede falhar, retorna index.html em cache
-          if (request.mode === 'navigate') {
-            return caches.match('/index.html');
-          }
+    fetch(request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseClone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, responseClone);
+          });
+        }
+        return networkResponse;
+      })
+      .catch(async () => {
+        // Fallback offline: busca do cache
+        const cachedResponse = await caches.match(request);
+        if (cachedResponse) {
           return cachedResponse;
-        });
+        }
 
-      return cachedResponse || fetchPromise;
-    })
+        // Se for navegação (HTML) e estiver offline, serve index.html
+        if (request.mode === 'navigate') {
+          const cachedIndex = await caches.match('/index.html');
+          if (cachedIndex) return cachedIndex;
+        }
+
+        // Se for API e offline
+        if (url.pathname.startsWith('/api/')) {
+          return new Response(JSON.stringify({ error: 'Modo Offline', offline: true }), {
+            status: 503,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+
+        return new Response('Offline', { status: 503 });
+      })
   );
 });
 
-// Evento Push do Navegador (notificações push remotas ou locais)
+// Push Notifications
 self.addEventListener('push', (event) => {
   let data = {};
   if (event.data) {
@@ -140,25 +133,7 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
-// Recebe mensagens da aplicação (ex: disparos do timer em segundo plano)
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
-    const { title, options } = event.data;
-    event.waitUntil(
-      self.registration.showNotification(title || 'Vocalis: Alarme Vocal', {
-        icon: '/icon.svg',
-        badge: '/icon.svg',
-        vibrate: [250, 100, 250, 100, 250],
-        tag: options?.tag || 'vocalis-reminder',
-        renotify: true,
-        requireInteraction: true,
-        ...options
-      })
-    );
-  }
-});
-
-// Manipula cliques na notificação do sistema
+// Clique na Notificação Push
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
@@ -166,26 +141,33 @@ self.addEventListener('notificationclick', (event) => {
     return;
   }
 
-  const notificationData = event.notification.data || {};
+  const targetUrl = (event.notification.data && event.notification.data.url) || '/';
 
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // Se houver uma janela aberta do Vocalis, foca nela
-      for (const client of clientList) {
-        if ('focus' in client) {
-          client.focus();
-          client.postMessage({
-            type: 'NOTIFICATION_CLICKED',
-            action: event.action,
-            data: notificationData
-          });
-          return;
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      for (const client of windowClients) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          client.navigate(targetUrl);
+          return client.focus();
         }
       }
-      // Se nenhuma janela estiver aberta, abre a página principal do app
       if (self.clients.openWindow) {
-        return self.clients.openWindow('/#exercises');
+        return self.clients.openWindow(targetUrl);
       }
     })
   );
+});
+
+// Comunicação com a aplicação
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+  if (event.data && event.data.type === 'CLEAR_OLD_CACHES') {
+    caches.keys().then((keys) => {
+      keys.forEach((key) => {
+        if (key !== CACHE_NAME) caches.delete(key);
+      });
+    });
+  }
 });

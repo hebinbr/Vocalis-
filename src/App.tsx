@@ -21,6 +21,13 @@ import {
   Stethoscope
 } from 'lucide-react';
 import { Patient, Exercise, ExerciseLog, Reminder, ProgressStats, User } from './types';
+import {
+  INITIAL_PATIENT,
+  INITIAL_EXERCISES,
+  INITIAL_REMINDERS,
+  INITIAL_STATS,
+  INITIAL_LOGS,
+} from './data/initialClinicalData';
 import { api } from './services/api';
 import { Header } from './components/Header';
 import { ExerciseCatalog } from './components/ExerciseCatalog';
@@ -37,11 +44,11 @@ import { ActiveReminderToast } from './components/ActiveReminderToast';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<'exercises' | 'progress' | 'reminders' | 'vault' | 'therapist'>('exercises');
-  const [patient, setPatient] = useState<Patient | null>(null);
-  const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [logs, setLogs] = useState<ExerciseLog[]>([]);
-  const [reminders, setReminders] = useState<Reminder[]>([]);
-  const [stats, setStats] = useState<ProgressStats | null>(null);
+  const [patient, setPatient] = useState<Patient>(INITIAL_PATIENT);
+  const [exercises, setExercises] = useState<Exercise[]>(INITIAL_EXERCISES);
+  const [logs, setLogs] = useState<ExerciseLog[]>(INITIAL_LOGS);
+  const [reminders, setReminders] = useState<Reminder[]>(INITIAL_REMINDERS);
+  const [stats, setStats] = useState<ProgressStats>(INITIAL_STATS);
 
   // Authenticated User State (defaults to Camila, patient with persistent SQLite record)
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -62,8 +69,7 @@ export default function App() {
     };
   });
 
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
 
   // Active Modals & Triggers
   const [activeExercise, setActiveExercise] = useState<Exercise | null>(null);
@@ -81,29 +87,27 @@ export default function App() {
     }
   }, [currentUser]);
 
-  // Load initial app data from SQLite backend with graceful retry and offline caching
+  // Load / Sync app data with SQLite backend in background with graceful retry
   const loadAppData = useCallback(async (retryCount = 0) => {
     try {
-      setLoading(true);
-
       const patientPromise = api.getPatient(currentUser?.id).catch((e) => {
-        console.warn('Patient fetch notice:', e);
+        console.warn('Patient sync notice:', e);
         return null;
       });
       const exercisesPromise = api.getExercises().catch((e) => {
-        console.warn('Exercises fetch notice:', e);
+        console.warn('Exercises sync notice:', e);
         return null;
       });
       const logsPromise = api.getLogs(currentUser?.id).catch((e) => {
-        console.warn('Logs fetch notice:', e);
+        console.warn('Logs sync notice:', e);
         return null;
       });
       const remindersPromise = api.getReminders(currentUser?.id).catch((e) => {
-        console.warn('Reminders fetch notice:', e);
+        console.warn('Reminders sync notice:', e);
         return null;
       });
       const statsPromise = api.getProgressStats(currentUser?.id).catch((e) => {
-        console.warn('Stats fetch notice:', e);
+        console.warn('Stats sync notice:', e);
         return null;
       });
 
@@ -115,45 +119,28 @@ export default function App() {
         statsPromise,
       ]);
 
-      let hasAnySuccess = false;
-
       if (patientData && patientData.name) {
         setPatient(patientData);
-        hasAnySuccess = true;
       }
       if (Array.isArray(exercisesData) && exercisesData.length > 0) {
         setExercises(exercisesData);
-        hasAnySuccess = true;
       }
-      if (Array.isArray(logsData)) {
+      if (Array.isArray(logsData) && logsData.length > 0) {
         setLogs(logsData);
-        hasAnySuccess = true;
       }
-      if (Array.isArray(remindersData)) {
+      if (Array.isArray(remindersData) && remindersData.length > 0) {
         setReminders(remindersData);
-        hasAnySuccess = true;
       }
-      if (statsData) {
+      if (statsData && statsData.level_title) {
         setStats(statsData);
-        hasAnySuccess = true;
-      }
-
-      if (hasAnySuccess) {
-        setError(null);
-      } else {
-        throw new Error('Servidor ainda inicializando dados clínicos');
       }
     } catch (err: any) {
-      console.warn(`Initial load attempt ${retryCount + 1} notice:`, err?.message || err);
-      if (retryCount < 4) {
+      console.warn(`Background sync attempt ${retryCount + 1} notice:`, err?.message || err);
+      if (retryCount < 3) {
         setTimeout(() => {
           loadAppData(retryCount + 1);
-        }, 600 * (retryCount + 1));
-        return;
+        }, 1500 * (retryCount + 1));
       }
-      setError('Conexão com o banco SQLite em inicialização. Clique em Tentar Novamente para sincronizar.');
-    } finally {
-      setLoading(false);
     }
   }, [currentUser?.id]);
 
@@ -318,22 +305,6 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-20">
-        {/* Error / Offline Notice with Reconnect */}
-        {error && (
-          <div className="mb-6 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 flex items-center justify-between gap-4 text-xs">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-              <span>{error}</span>
-            </div>
-            <button
-              onClick={() => loadAppData(0)}
-              className="px-3 py-1.5 font-semibold bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-900 dark:text-amber-200 flex items-center gap-1 shrink-0"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Tentar Novamente</span>
-            </button>
-          </div>
-        )}
 
         {/* Loading Spinner */}
         {loading && !patient && currentTab !== 'therapist' ? (

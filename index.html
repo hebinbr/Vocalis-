@@ -40,6 +40,19 @@
             document.documentElement.classList.remove('dark');
           }
         } catch (e) {}
+
+        // Invalida caches obsoletos no navegador do usuário
+        try {
+          if ('caches' in window) {
+            caches.keys().then(function(keys) {
+              keys.forEach(function(key) {
+                if (key !== 'vocalis-cache-v10') {
+                  caches.delete(key);
+                }
+              });
+            });
+          }
+        } catch (e) {}
       })();
     </script>
   </head>

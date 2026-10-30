@@ -327,18 +327,51 @@ class VocalisAPIHandler(BaseHTTPRequestHandler):
         pass
 
 
+class ReusableThreadingServer(ThreadingHTTPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+
+    def server_bind(self):
+        import socket
+        try:
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            if hasattr(socket, "SO_REUSEPORT"):
+                try:
+                    self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        super().server_bind()
+
+
 def run():
     db.init_db()
     server_address = ("127.0.0.1", PORT)
-    ThreadingHTTPServer.allow_reuse_address = True
-    httpd = ThreadingHTTPServer(server_address, VocalisAPIHandler)
-    httpd.daemon_threads = True
-    print(f"[Vocalis Python Backend] Running multi-threaded on http://127.0.0.1:{PORT}")
+
+    # Verifica se já há uma instância saudável ativa na porta antes de tentar bind
+    import socket
     try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.4)
+            if s.connect_ex(server_address) == 0:
+                print(f"[Vocalis Python Backend] Instância já ativa e escutando na porta {PORT}. Encerrando duplicata com sucesso.")
+                sys.exit(0)
+    except Exception:
+        pass
+
+    try:
+        httpd = ReusableThreadingServer(server_address, VocalisAPIHandler)
+        print(f"[Vocalis Python Backend] Running multi-threaded on http://127.0.0.1:{PORT}")
         httpd.serve_forever()
+    except OSError as e:
+        if e.errno == 98:
+            print(f"[Vocalis Python Backend] Porta {PORT} já ocupada por processo ativo. Encerrando duplicata.")
+            sys.exit(0)
+        else:
+            raise
     except KeyboardInterrupt:
         print("\n[Vocalis Python Backend] Shutting down...")
-        httpd.server_close()
 
 
 if __name__ == "__main__":
