@@ -12,10 +12,14 @@ import {
   Sunset,
   Moon,
   ShieldCheck,
-  AlertCircle
+  AlertCircle,
+  BellRing,
+  Radio
 } from 'lucide-react';
 import { Reminder } from '../types';
 import { useVocalAudio } from '../hooks/useVocalAudio';
+import { UseNotificationSchedulerReturn } from '../hooks/useNotificationScheduler';
+import { NotificationSettingsBanner } from './NotificationSettingsBanner';
 import therapistAvatarImg from '../assets/images/avatar_therapist_1793024499041.jpg';
 
 interface RemindersManagerProps {
@@ -23,6 +27,7 @@ interface RemindersManagerProps {
   onAddReminder: (data: Partial<Reminder>) => Promise<void>;
   onToggleReminder: (id: number, currentActive: boolean) => Promise<void>;
   onDeleteReminder: (id: number) => Promise<void>;
+  notificationScheduler?: UseNotificationSchedulerReturn;
 }
 
 const DAYS_OF_WEEK = [
@@ -40,6 +45,7 @@ export const RemindersManager: React.FC<RemindersManagerProps> = ({
   onAddReminder,
   onToggleReminder,
   onDeleteReminder,
+  notificationScheduler,
 }) => {
   const { playChime } = useVocalAudio();
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
@@ -108,7 +114,7 @@ export const RemindersManager: React.FC<RemindersManagerProps> = ({
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xl">
-            Configure alarmes suaves para seus momentos de aquecimento matinal, hidratação laríngea e desaquecimento noturno.
+            Configure alarmes suaves para seus momentos de aquecimento matinal, hidratação laríngea e desaquecimento noturno com notificações push no navegador.
           </p>
         </div>
 
@@ -134,6 +140,19 @@ export const RemindersManager: React.FC<RemindersManagerProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Browser Push & Background Notifications Hub */}
+      {notificationScheduler && (
+        <NotificationSettingsBanner
+          permission={notificationScheduler.permission}
+          isSupported={notificationScheduler.isSupported}
+          isSubscribed={notificationScheduler.isSubscribed}
+          isWorkerActive={notificationScheduler.isWorkerActive}
+          onRequestPermission={notificationScheduler.requestPermission}
+          onSendTestNotification={notificationScheduler.sendTestNotification}
+          onToggleNotifications={notificationScheduler.toggleNotifications}
+        />
+      )}
 
       {/* Grid of Scheduled Reminders */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -195,16 +214,22 @@ export const RemindersManager: React.FC<RemindersManagerProps> = ({
               </div>
 
               <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                <span className="flex items-center gap-1 text-[11px]">
-                  {rem.sound_alert ? (
-                    <>
-                      <Volume2 className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                      <span>Alarme harmônico ativo</span>
-                    </>
-                  ) : (
-                    <span>Apenas notificação visual</span>
+                <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                  {rem.is_active && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-200/60 dark:border-emerald-800">
+                      <BellRing className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
+                      Push Ativo
+                    </span>
                   )}
-                </span>
+                  {rem.sound_alert ? (
+                    <span className="flex items-center gap-1">
+                      <Volume2 className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                      <span>Alarme harmônico</span>
+                    </span>
+                  ) : (
+                    <span>Apenas push</span>
+                  )}
+                </div>
 
                 <button
                   onClick={() => onDeleteReminder(rem.id)}
@@ -342,7 +367,7 @@ export const RemindersManager: React.FC<RemindersManagerProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-2">
+              <div className="space-y-2.5 pt-2">
                 <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-700 dark:text-slate-300">
                   <input
                     type="checkbox"
@@ -352,6 +377,10 @@ export const RemindersManager: React.FC<RemindersManagerProps> = ({
                   />
                   <span>Emitir alarme sonoro suave</span>
                 </label>
+                <div className="text-[11px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 p-2.5 rounded-xl border border-emerald-200/60 dark:border-emerald-800 flex items-center gap-2">
+                  <BellRing className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                  <span>Notificação push garantida: alerta emitido no navegador mesmo com a aba em segundo plano.</span>
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">

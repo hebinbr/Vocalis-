@@ -337,6 +337,336 @@ function initDatabaseTables(db: any) {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  // Auto-seed de Usuários e Códigos Clínicos se vazio
+  try {
+    const userCount: any = db.prepare('SELECT COUNT(*) as count FROM users').get();
+    if (!userCount || userCount.count === 0) {
+      const { hashHex: fonoHash, saltHex: fonoSalt } = hashPassword('Fono1234!');
+      const fonoRes = db.prepare(`
+        INSERT INTO users (role, name, email, phone, password_hash, salt, is_activated)
+        VALUES ('fonoaudiologa', 'Dra. Beatriz Menezes', 'dra.beatriz@vocalis.com.br', '(11) 98765-4321', ?, ?, 1)
+      `).run(fonoHash, fonoSalt);
+      const fonoId = Number(fonoRes.lastInsertRowid);
+
+      const c1Res = db.prepare(`
+        INSERT INTO access_codes (therapist_id, code, patient_name, patient_email, is_used)
+        VALUES (?, 'VOCA-7842', 'Camila Vasconcelos', 'camila@email.com', 1)
+      `).run(fonoId);
+      const c1Id = Number(c1Res.lastInsertRowid);
+
+      db.prepare(`
+        INSERT INTO access_codes (therapist_id, code, patient_name, patient_email, is_used)
+        VALUES (?, 'VOCA-2026', 'Novo Paciente VIP', '', 0)
+      `).run(fonoId);
+
+      db.prepare(`
+        INSERT INTO access_codes (therapist_id, code, patient_name, patient_email, is_used)
+        VALUES (?, 'FONO-9900', 'Paciente Avaliação', '', 0)
+      `).run(fonoId);
+
+      const { hashHex: pacHash, saltHex: pacSalt } = hashPassword('Voz1234!');
+      const pacRes = db.prepare(`
+        INSERT INTO users (role, name, email, password_hash, salt, is_activated, therapist_id, activation_code_used)
+        VALUES ('paciente', 'Camila Vasconcelos', 'camila@email.com', ?, ?, 1, ?, 'VOCA-7842')
+      `).run(pacHash, pacSalt, fonoId);
+      const pacId = Number(pacRes.lastInsertRowid);
+
+      db.prepare('UPDATE access_codes SET used_by_user_id = ?, used_at = CURRENT_TIMESTAMP WHERE id = ?').run(pacId, c1Id);
+    }
+  } catch (err) {
+    console.warn('[Vocalis SQLite Seed Error - Users]:', err);
+  }
+
+  // Auto-seed do Paciente Clínico se vazio
+  try {
+    const patCount: any = db.prepare('SELECT COUNT(*) as count FROM patient').get();
+    if (!patCount || patCount.count === 0) {
+      const pName = encryptText('Camila Vasconcelos');
+      const pDiag = encryptText('Fadiga vocal ocupacional com fenda glótica paralela leve (Professora de Ensino Médio)');
+      const pTherapist = encryptText('Dra. Beatriz Menezes');
+      const pCrfa = encryptText('CRFa 2-19842/SP');
+      const pNotes = encryptText('Foco em hidratação pré-aula, exercícios com tubo de ressonância (SOVTE) e monitoramento de tensão cervical.');
+      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+      db.prepare(`
+        INSERT INTO patient (user_id, name_enc, diagnosis_enc, therapist_name_enc, therapist_crfa_enc, clinical_notes_enc, daily_goal_minutes, streak_count, best_streak, last_exercise_date, xp_points, level)
+        VALUES (2, ?, ?, ?, ?, ?, 15, 4, 12, ?, 380, 2)
+      `).run(pName, pDiag, pTherapist, pCrfa, pNotes, yesterday);
+    }
+  } catch (err) {
+    console.warn('[Vocalis SQLite Seed Error - Patient]:', err);
+  }
+
+  // Auto-seed do Catálogo de Exercícios Vocais se vazio
+  try {
+    const exCount: any = db.prepare('SELECT COUNT(*) as count FROM exercises').get();
+    if (!exCount || exCount.count === 0) {
+      const seedExercises = [
+        [
+          'vib_labios',
+          'Vibração de Lábios (Trilos)',
+          'Aquecimento & Soltura',
+          'Frequência Confortável (130Hz - 260Hz)',
+          "Produção contínua do som 'Brrr' com vibração solta dos lábios.",
+          'Equaliza a pressão subglótica, reduz o impacto direto das pregas vocais e ativa a musculatura respiratória diafragmática.',
+          JSON.stringify([
+            'Sente-se ereto com os ombros relaxados e respire pelo abdômen.',
+            'Junte os lábios suavemente sem comprimir.',
+            "Sopre o ar fazendo os lábios vibrarem continuamente no som 'Brrr'.",
+            'Mantenha um som constante por 8 a 10 segundos, sem oscilar a intensidade.',
+            'Repita 4 séries com pausas de 15 segundos para hidratação.'
+          ]),
+          4, 45, 196,
+          'Se sentir cócegas no nariz ou nos lábios, é sinal de ressonância adequada.',
+          'Wind', 1, 40, 0
+        ],
+        [
+          'bocejo_suspiro',
+          'Bocejo-Suspiro (Yawn-Sigh)',
+          'Relaxamento Laríngeo',
+          'Descendente Suave',
+          'Indução de bocejo verdadeiro com saída de ar em suspiro vocalizado suave.',
+          'Promove o rebaixamento fisiológico da cartilagem tireóidea e relaxamento de toda a musculatura supra-hioidea.',
+          JSON.stringify([
+            'Abra a boca e simule um bocejo gostoso, sentindo a laringe descer e o céu da boca subir.',
+            "No ápice do bocejo, solte o ar suspirando com voz suave na vogal 'Aaaaah'.",
+            'Deixe o queixo cair solto e os ombros descerem.',
+            'Repita lentamente 5 vezes com intervalos de respiração serena.'
+          ]),
+          5, 45, 170,
+          'Sensação de frescor no fundo da garganta é perfeitamente normal durante este exercício.',
+          'Feather', 1, 35, 0
+        ],
+        [
+          'canudo_sovte',
+          "Tubo Semiocluído / Canudo d'Água (SOVTE)",
+          'Trato Vocal Semiocluído',
+          'Glide Suave (150Hz - 320Hz)',
+          'Fonação através de um canudo com ponta imersa a 2cm em copo com água.',
+          'Cria contrapressão positiva no trato vocal, promovendo afastamento mecânico suave das bordas livres das pregas vocais e aumento da ressonância acústica.',
+          JSON.stringify([
+            'Coloque água em um copo (cerca de metade do volume).',
+            'Mergulhe o canudo a exatamente 2 cm abaixo da superfície da água.',
+            'Vede bem os lábios ao redor do canudo sem deixar o ar escapar pelos lados ou nariz.',
+            "Emita um som confortável 'Uuuu', produzindo borbulhas constantes e suaves na água.",
+            'Faça pequenas subidas e descidas de tom sem forçar a garganta.'
+          ]),
+          5, 60, 220,
+          'Mantenha as bolhas uniformes. Não deixe o canudo encostar no fundo do copo.',
+          'Waves', 2, 50, 0
+        ],
+        [
+          'humming_mascara',
+          'Humming (Ressonância em /m/)',
+          'Ressonância & Foco Facial',
+          'Médio Suave (165Hz - 240Hz)',
+          "Emissão suave do som 'Mmm' sentindo a vibração óssea na máscara facial (nariz e maçãs do rosto).",
+          'Transfere a energia acústica da laringe para os ressonadores faciais, gerando projeção brilhante e relaxamento da garganta.',
+          JSON.stringify([
+            'Mantenha a boca fechada, dentes ligeiramente separados e mandíbula solta.',
+            'Inspire pelo nariz com calma.',
+            "Produza o som 'Mmm' como se estivesse saboreando uma comida deliciosa.",
+            'Coloque a ponta dos dedos delicadamente na asa do nariz para sentir a vibração.',
+            'Execute em tom médio e relaxado por 10 segundos cada repetição.'
+          ]),
+          4, 50, 210,
+          'Se sentir aperto na garganta, imagine que está engolindo ar e abrindo a faringe.',
+          'Smile', 2, 45, 0
+        ],
+        [
+          'desafio_bolhas_sovte',
+          'Desafio Especial: Bolhas Contínuas SOVTE',
+          'Desafio Nível 2',
+          'Sustentação Estável (220Hz)',
+          'Desafio de estabilidade de fluxo aéreo sustentando borbulhamento por 90 segundos com pressão uniforme.',
+          'Fortalecimento da capacidade vital e resistência pneumofônica sem estresse mecânico glótico.',
+          JSON.stringify([
+            'Mergulhe o canudo a 2cm.',
+            'Inicie a fonação contínua e mantenha as bolhas no mesmo tamanho e frequência de som.',
+            'Procure manter o pitch fixo na frequência recomendada pelo aplicativo.',
+            'Não deixe o som morrer antes do cronômetro atingir a meta.'
+          ]),
+          3, 90, 220,
+          'Bônus especial de 75 XP concedido ao manter a afinação estável.',
+          'Award', 2, 75, 1
+        ],
+        [
+          'relacao_sz',
+          'Sustentação Fricativa /s/ e /z/',
+          'Coordenação Pneumofônica',
+          'Tempo Máximo de Fonação',
+          'Emissão contínua cronometrada do som surdo /s/ seguida pelo som sonoro /z/.',
+          'Avalia a eficiência do fechamento glótico e o suporte respiratório. A relação ideal entre /s/ e /z/ fica próxima de 1,0 (entre 0.8 e 1.2).',
+          JSON.stringify([
+            'Inspire profundamente pelo nariz expandindo a região costo-diafragmática.',
+            'Ao iniciar o cronômetro, solte o som /s/ de forma contínua e suave até esgotar o ar confortável.',
+            'Descanse 30 segundos respirando normalmente.',
+            'Inspire novamente da mesma forma e emita o som /z/ cronometrado.',
+            'O aplicativo calcula automaticamente a sua relação s/z.'
+          ]),
+          3, 60, 180,
+          'Não esvazie os pulmões até sentir dor; pare quando o som perder estabilidade.',
+          'Timer', 3, 60, 0
+        ],
+        [
+          'desafio_proporcao_aurea',
+          'Desafio de Ouro: Proporção s/z Perfeita',
+          'Desafio Nível 3',
+          'Relação 0.90 - 1.10',
+          'Desafio de alta precisão glótica: alcance uma relação s/z exatamente entre 0.90 e 1.10.',
+          'Consagração de fechamento glótico ideal e sincronia neuromuscular completa.',
+          JSON.stringify([
+            'Realize 1 rodada de aquecimento leve com humming.',
+            'Execute a medição do /s/ sem tensão nos ombros.',
+            'Execute o /z/ mantendo a mesma pressão de ar e suporte diafragmático.',
+            'Atingir a faixa de 0.90 a 1.10 desbloqueia o distintivo de ouro.'
+          ]),
+          2, 70, 185,
+          "Concede 90 XP e distintivo de 'Harmonia Pneumofônica'.",
+          'Award', 3, 90, 1
+        ],
+        [
+          'glissando_sirene',
+          'Glissando / Sirene Vocal',
+          'Flexibilidade & Extensão',
+          'Grave ao Agudo (120Hz - 440Hz)',
+          'Transição contínua e deslizante do tom mais grave confortável até o tom agudo suave.',
+          'Alongamento e fortalecimento coordenado dos músculos tensores (cricotireóideo) e adutores das pregas vocais, eliminando quebras vocais.',
+          JSON.stringify([
+            "Pode ser feito em vibração de lábios ou com a sílaba 'Uuu'.",
+            'Inicie em uma nota grave relaxada.',
+            'Deslize suavemente a voz para o agudo sem dar saltos bruscos ou aumentar o volume.',
+            'No topo, retorne deslizando suavemente de volta à nota grave inicial.',
+            'Imagine desenhar um arco-íris suave com o som.'
+          ]),
+          4, 60, 260,
+          'Nunca force notas excessivamente agudas com esforço. O volume deve permanecer leve.',
+          'TrendingUp', 4, 70, 0
+        ],
+        [
+          'desafio_arco_iris',
+          'Desafio Arco-Íris Acústico',
+          'Desafio Nível 4',
+          'Extensão de 2 Oitavas',
+          'Realize 5 glissandos perfeitos cobrindo desde o registro basal até o registro de cabeça sem quebras ou perda de fôlego.',
+          'Flexibilização máxima do ligamento vocal e ajuste fino do músculo cricotireóideo.',
+          JSON.stringify([
+            'Suba e desça a voz de forma ultra-suave.',
+            'Acompanhe o traçado do diapasão em tempo real.',
+            'Mantenha a postura ereta e o queixo paralelo ao chão.'
+          ]),
+          5, 75, 290,
+          'Recompensa: 100 XP e título de Mestre dos Glissandos.',
+          'Award', 4, 100, 1
+        ],
+        [
+          'vocal_fry',
+          'Vocal Fry / Basculamento Posterior',
+          'Desaquecimento Vocal',
+          'Sub-grave / Frequência Mínima (<90Hz)',
+          "Produção do som crepitante/borbulhante 'creak' no limite inferior da tessitura.",
+          'Excelente para desaquecimento vocal e descompressão após dias intensos de trabalho, aproximando o corpo celular das pregas vocais sem estresse muscular.',
+          JSON.stringify([
+            'Sente-se confortavelmente e esvazie metade do ar dos pulmões.',
+            'Com o restinho do ar, emita um som crepitante bem frouxo e lento, como uma porta velha rangendo.',
+            'O som deve parecer pequenos estalinhos contínuos na garganta.',
+            'Faça por 4 a 6 segundos sem nenhuma força ou esforço.'
+          ]),
+          4, 40, 80,
+          'Não faça com força de ar. Deve soar quase como um sussurro crepitante relaxante.',
+          'Moon', 5, 80, 0
+        ],
+        [
+          'desafio_alta_performance',
+          'Desafio Supremo: Articulação Rítmica & Projeção',
+          'Desafio Nível 5',
+          'Alta Performance',
+          'Coordenação de trava-línguas com foco articulatório e projeção de máscara facial sem esforço laríngeo.',
+          'Precisão fonética máxima, velocidade de fala equilibrada e clareza para profissionais da voz.',
+          JSON.stringify([
+            'Pronuncie frases com trava-línguas mantendo a mandíbula ampla e relaxada.',
+            'Alterne volumes entre piano e forte mantendo a ressonância frontal.',
+            'Finalize com 1 minuto de vocal fry de descompressão.'
+          ]),
+          5, 90, 220,
+          "Recompensa máxima: 120 XP e selo de 'Voz de Ouro'.",
+          'Award', 5, 120, 1
+        ]
+      ];
+
+      const insertEx = db.prepare(`
+        INSERT INTO exercises (
+          id, title, category, target_range, description, benefits, instructions,
+          default_reps, default_duration_sec, target_hz, caution_tips, icon_name,
+          min_level, xp_reward, is_challenge
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      for (const ex of seedExercises) {
+        insertEx.run(...ex);
+      }
+    }
+  } catch (err) {
+    console.warn('[Vocalis SQLite Seed Error - Exercises]:', err);
+  }
+
+  // Auto-seed de Lembretes se vazio
+  try {
+    const remCount: any = db.prepare('SELECT COUNT(*) as count FROM reminders').get();
+    if (!remCount || remCount.count === 0) {
+      db.prepare(`
+        INSERT INTO reminders (user_id, title_enc, time_str, days_mask, is_active, sound_alert, category)
+        VALUES (?, ?, ?, ?, 1, 1, ?)
+      `).run(2, encryptText('Aquecimento Matinal com Trilos'), '08:15', JSON.stringify(['seg', 'ter', 'qua', 'qui', 'sex']), 'aquecimento');
+
+      db.prepare(`
+        INSERT INTO reminders (user_id, title_enc, time_str, days_mask, is_active, sound_alert, category)
+        VALUES (?, ?, ?, ?, 1, 1, ?)
+      `).run(2, encryptText('Pausa de Hidratação & Canudo SOVTE'), '14:00', JSON.stringify(['seg', 'ter', 'qua', 'qui', 'sex', 'sab']), 'hidratacao');
+
+      db.prepare(`
+        INSERT INTO reminders (user_id, title_enc, time_str, days_mask, is_active, sound_alert, category)
+        VALUES (?, ?, ?, ?, 1, 1, ?)
+      `).run(2, encryptText('Desaquecimento Noturno & Relaxamento'), '20:30', JSON.stringify(['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab']), 'desaquecimento');
+    }
+  } catch (err) {
+    console.warn('[Vocalis SQLite Seed Error - Reminders]:', err);
+  }
+
+  // Auto-seed de Logs se vazio
+  try {
+    const logCount: any = db.prepare('SELECT COUNT(*) as count FROM exercise_logs').get();
+    if (!logCount || logCount.count === 0) {
+      const today = new Date();
+      const d1 = new Date(today); d1.setDate(today.getDate() - 3);
+      const d2 = new Date(today); d2.setDate(today.getDate() - 2);
+      const d3 = new Date(today); d3.setDate(today.getDate() - 1);
+      const d4 = new Date(today);
+
+      db.prepare(`
+        INSERT INTO exercise_logs (user_id, exercise_id, exercise_title, duration_sec, repetitions, pitch_accuracy, effort_level, fatigue_before, fatigue_after, notes_enc, date_iso, xp_earned)
+        VALUES (2, 'vib_labios', 'Vibração de Lábios (Trilos)', 180, 4, 94.5, 2, 5, 2, ?, ?, 50)
+      `).run(encryptText('A voz respondeu mais rápido hoje. Sem pigarro no final do exercício.'), d1.toISOString().split('T')[0]);
+
+      db.prepare(`
+        INSERT INTO exercise_logs (user_id, exercise_id, exercise_title, duration_sec, repetitions, pitch_accuracy, effort_level, fatigue_before, fatigue_after, notes_enc, date_iso, xp_earned)
+        VALUES (2, 'canudo_sovte', 'Tubo Semiocluído / Canudo d''Água (SOVTE)', 240, 5, 92.0, 3, 6, 2, ?, ?, 50)
+      `).run(encryptText('Fiz com canudo de 5mm. Sensação imediata de alívio na laringe após a aula.'), d2.toISOString().split('T')[0]);
+
+      db.prepare(`
+        INSERT INTO exercise_logs (user_id, exercise_id, exercise_title, duration_sec, repetitions, pitch_accuracy, effort_level, fatigue_before, fatigue_after, notes_enc, date_iso, xp_earned)
+        VALUES (2, 'relacao_sz', 'Sustentação Fricativa /s/ e /z/', 120, 3, 96.0, 2, 3, 1, ?, ?, 50)
+      `).run(encryptText('Sustentei /s/ por 18s e /z/ por 17.5s. Relação s/z deu 1.02 (ótimo fechamento).'), d3.toISOString().split('T')[0]);
+
+      db.prepare(`
+        INSERT INTO exercise_logs (user_id, exercise_id, exercise_title, duration_sec, repetitions, pitch_accuracy, effort_level, fatigue_before, fatigue_after, notes_enc, date_iso, xp_earned)
+        VALUES (2, 'bocejo_suspiro', 'Bocejo-Suspiro (Yawn-Sigh)', 150, 5, 98.0, 1, 4, 1, ?, ?, 50)
+      `).run(encryptText('Alívio da rigidez cervical posterior. Excelente antes de dormir.'), d4.toISOString().split('T')[0]);
+    }
+  } catch (err) {
+    console.warn('[Vocalis SQLite Seed Error - Logs]:', err);
+  }
 }
 
 // Operações da API

@@ -1,5 +1,5 @@
-import express, { Request, Response } from 'express';
-import { spawn, ChildProcess } from 'child_process';
+import express, { type Request, type Response } from 'express';
+import { spawn, type ChildProcess } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -78,6 +78,14 @@ process.on('SIGTERM', () => {
 app.use(express.json());
 
 // Serve static images and assets with multiple route aliases so images NEVER 404 in dev or production
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('sw.js') || filePath.endsWith('service-worker.js')) {
+      res.setHeader('Service-Worker-Allowed', '/');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    }
+  }
+}));
 app.use('/images', express.static(path.join(__dirname, 'public', 'images')));
 app.use('/assets/images', express.static(path.join(__dirname, 'public', 'images')));
 app.use('/src/assets/images', express.static(path.join(__dirname, 'src', 'assets', 'images')));
@@ -243,7 +251,9 @@ app.all('/api/*', async (req: Request, res: Response) => {
 
 // Setup Vite middleware in dev or static files in production
 async function setupFrontend() {
-  const isDev = process.env.NODE_ENV !== 'production';
+  const distPath = path.join(__dirname, 'dist');
+  const hasDist = fs.existsSync(path.join(distPath, 'index.html'));
+  const isDev = process.env.NODE_ENV === 'development' || (!hasDist && process.env.NODE_ENV !== 'production');
 
   if (isDev) {
     const { createServer } = await import('vite');
@@ -253,20 +263,14 @@ async function setupFrontend() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(__dirname, 'dist');
-    // Ensure dist directory exists
-    if (fs.existsSync(distPath)) {
-      app.use(express.static(distPath));
-      app.get('*', (_req, res) => {
-        res.sendFile(path.join(distPath, 'index.html'));
-      });
-    } else {
-      console.warn('[Vocalis] dist directory not found; please build first with `npm run build`.');
-    }
+    app.use(express.static(distPath));
+    app.get('*', (_req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
   }
 
   app.listen(PORT, () => {
-    console.log(`[Vocalis] Server running on http://0.0.0.0:${PORT}`);
+    console.log(`[Vocalis] Server running on http://0.0.0.0:${PORT} (Mode: ${isDev ? 'Vite Dev' : 'Production Dist'})`);
   });
 }
 

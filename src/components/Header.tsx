@@ -104,13 +104,14 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               onClick={() => onSelectTab('reminders')}
-              className={`hover:text-teal-700 dark:hover:text-teal-400 transition-colors whitespace-nowrap shrink-0 py-1 border-b-2 ${
+              className={`hover:text-teal-700 dark:hover:text-teal-400 transition-colors whitespace-nowrap shrink-0 py-1 border-b-2 flex items-center gap-1.5 ${
                 currentTab === 'reminders'
                   ? 'border-teal-600 dark:border-teal-400 text-teal-800 dark:text-teal-300 font-semibold'
                   : 'border-transparent text-slate-600 dark:text-slate-300'
               }`}
             >
-              Lembretes Diários
+              <Bell className="w-3.5 h-3.5" />
+              <span>Lembretes Diários</span>
             </button>
 
             <button

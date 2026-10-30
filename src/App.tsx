@@ -32,6 +32,8 @@ import { PatientProfileModal } from './components/PatientProfileModal';
 import { CelebrationModal, CelebrationData } from './components/CelebrationModal';
 import { AuthModal } from './components/AuthModal';
 import { TherapistDashboard } from './components/TherapistDashboard';
+import { useNotificationScheduler } from './hooks/useNotificationScheduler';
+import { ActiveReminderToast } from './components/ActiveReminderToast';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<'exercises' | 'progress' | 'reminders' | 'vault' | 'therapist'>('exercises');
@@ -79,44 +81,77 @@ export default function App() {
     }
   }, [currentUser]);
 
-  // Load initial app data from Python SQLite backend with graceful retry
+  // Load initial app data from SQLite backend with graceful retry and offline caching
   const loadAppData = useCallback(async (retryCount = 0) => {
     try {
       setLoading(true);
-      setError(null);
+
+      const patientPromise = api.getPatient(currentUser?.id).catch((e) => {
+        console.warn('Patient fetch notice:', e);
+        return null;
+      });
+      const exercisesPromise = api.getExercises().catch((e) => {
+        console.warn('Exercises fetch notice:', e);
+        return null;
+      });
+      const logsPromise = api.getLogs(currentUser?.id).catch((e) => {
+        console.warn('Logs fetch notice:', e);
+        return null;
+      });
+      const remindersPromise = api.getReminders(currentUser?.id).catch((e) => {
+        console.warn('Reminders fetch notice:', e);
+        return null;
+      });
+      const statsPromise = api.getProgressStats(currentUser?.id).catch((e) => {
+        console.warn('Stats fetch notice:', e);
+        return null;
+      });
+
       const [patientData, exercisesData, logsData, remindersData, statsData] = await Promise.all([
-        api.getPatient(currentUser?.id),
-        api.getExercises(),
-        api.getLogs(currentUser?.id),
-        api.getReminders(currentUser?.id),
-        api.getProgressStats(currentUser?.id),
+        patientPromise,
+        exercisesPromise,
+        logsPromise,
+        remindersPromise,
+        statsPromise,
       ]);
+
+      let hasAnySuccess = false;
 
       if (patientData && patientData.name) {
         setPatient(patientData);
+        hasAnySuccess = true;
       }
       if (Array.isArray(exercisesData) && exercisesData.length > 0) {
         setExercises(exercisesData);
+        hasAnySuccess = true;
       }
       if (Array.isArray(logsData)) {
         setLogs(logsData);
+        hasAnySuccess = true;
       }
       if (Array.isArray(remindersData)) {
         setReminders(remindersData);
+        hasAnySuccess = true;
       }
       if (statsData) {
         setStats(statsData);
+        hasAnySuccess = true;
       }
-      setError(null);
+
+      if (hasAnySuccess) {
+        setError(null);
+      } else {
+        throw new Error('Servidor ainda inicializando dados clínicos');
+      }
     } catch (err: any) {
-      console.warn('Initial load attempt notice:', err);
-      if (retryCount < 3) {
+      console.warn(`Initial load attempt ${retryCount + 1} notice:`, err?.message || err);
+      if (retryCount < 4) {
         setTimeout(() => {
           loadAppData(retryCount + 1);
-        }, 400 * (retryCount + 1));
+        }, 600 * (retryCount + 1));
         return;
       }
-      setError('Conexão com o banco SQLite temporariamente indisponível.');
+      setError('Conexão com o banco SQLite em inicialização. Clique em Tentar Novamente para sincronizar.');
     } finally {
       setLoading(false);
     }
@@ -227,6 +262,25 @@ export default function App() {
       setActiveExercise(exercises[0]);
     }
   };
+
+  // Handle start exercise triggered from background push notification or toast
+  const handleStartReminderExercise = useCallback((reminder: Reminder) => {
+    setCurrentTab('exercises');
+    const match = exercises.find((e) =>
+      reminder.title.toLowerCase().includes(e.title.toLowerCase()) ||
+      (reminder.category === 'aquecimento' && e.id === 'vib_labios') ||
+      (reminder.category === 'hidratacao' && e.id === 'canudo_sovte') ||
+      (reminder.category === 'desaquecimento' && e.id === 'vocal_fry')
+    );
+    if (match) {
+      setActiveExercise(match);
+    } else if (exercises.length > 0) {
+      setActiveExercise(exercises[0]);
+    }
+  }, [exercises]);
+
+  // Browser Push Notification Scheduler with Web Worker background ticker
+  const notificationScheduler = useNotificationScheduler(reminders, handleStartReminderExercise);
 
   // Handle user authentication switch
   const handleAuthSuccess = (user: User) => {
@@ -339,6 +393,7 @@ export default function App() {
                 onAddReminder={handleAddReminder}
                 onToggleReminder={handleToggleReminder}
                 onDeleteReminder={handleDeleteReminder}
+                notificationScheduler={notificationScheduler}
               />
             )}
           </>
@@ -413,6 +468,13 @@ export default function App() {
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
         onAuthSuccess={handleAuthSuccess}
+      />
+
+      {/* Floating Active Reminder Toast (Real-time alert even when returning from background) */}
+      <ActiveReminderToast
+        alert={notificationScheduler.lastAlert}
+        onClose={notificationScheduler.clearLastAlert}
+        onStartExercise={handleStartReminderExercise}
       />
     </div>
   );
