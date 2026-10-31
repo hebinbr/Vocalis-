@@ -322,6 +322,7 @@ export default function App() {
               <TherapistDashboard
                 currentUser={currentUser}
                 onSwitchToPatientView={() => setCurrentTab('exercises')}
+                onRefreshExercises={() => loadAppData(0)}
               />
             )}
 

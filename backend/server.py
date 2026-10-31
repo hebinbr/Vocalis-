@@ -272,6 +272,13 @@ class VocalisAPIHandler(BaseHTTPRequestHandler):
             self._send_json(res, status=201)
             return
 
+        if path == "/api/exercises":
+            therapist_id = data.get("therapist_id", 1)
+            therapist_name = data.get("created_by_name", "Dra. Beatriz Menezes")
+            res = db.add_exercise(data, therapist_id, therapist_name)
+            self._send_json(res, status=201)
+            return
+
         self._send_json({"error": "Endpoint não encontrado"}, status=404)
 
     def do_PUT(self):
@@ -284,6 +291,19 @@ class VocalisAPIHandler(BaseHTTPRequestHandler):
             updated = db.update_patient(data, user_id)
             self._send_json(updated)
             return
+
+        if path.startswith("/api/exercises/"):
+            try:
+                ex_id = path.split("/")[-1]
+                res = db.update_exercise(ex_id, data)
+                if not res:
+                    self._send_json({"error": "Exercício não encontrado"}, status=404)
+                else:
+                    self._send_json(res)
+                return
+            except Exception as e:
+                self._send_json({"error": str(e)}, status=400)
+                return
 
         if path.startswith("/api/reminders/"):
             try:
@@ -300,6 +320,16 @@ class VocalisAPIHandler(BaseHTTPRequestHandler):
     def do_DELETE(self):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/")
+
+        if path.startswith("/api/exercises/"):
+            try:
+                ex_id = path.split("/")[-1]
+                res = db.delete_exercise(ex_id)
+                self._send_json(res)
+                return
+            except Exception as e:
+                self._send_json({"error": str(e)}, status=400)
+                return
 
         if path.startswith("/api/logs/"):
             try:

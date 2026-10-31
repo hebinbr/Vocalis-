@@ -42,6 +42,7 @@ export const INITIAL_EXERCISES: Exercise[] = [
     min_level: 1,
     xp_reward: 40,
     is_challenge: false,
+    video_url: 'https://www.youtube.com/watch?v=0h9Vp1Xb1l8',
   },
   {
     id: 'bocejo_suspiro',
@@ -64,6 +65,7 @@ export const INITIAL_EXERCISES: Exercise[] = [
     min_level: 1,
     xp_reward: 35,
     is_challenge: false,
+    video_url: 'https://www.youtube.com/watch?v=kYJ5o-tKj8U',
   },
   {
     id: 'canudo_sovte',
@@ -87,6 +89,7 @@ export const INITIAL_EXERCISES: Exercise[] = [
     min_level: 2,
     xp_reward: 50,
     is_challenge: false,
+    video_url: 'https://www.youtube.com/watch?v=8VzGq_Jd_5A',
   },
   {
     id: 'humming_mascara',
@@ -110,6 +113,7 @@ export const INITIAL_EXERCISES: Exercise[] = [
     min_level: 2,
     xp_reward: 45,
     is_challenge: false,
+    video_url: 'https://www.youtube.com/watch?v=9gWzJgE5GQE',
   },
   {
     id: 'desafio_bolhas_sovte',
@@ -200,6 +204,7 @@ export const INITIAL_EXERCISES: Exercise[] = [
     min_level: 4,
     xp_reward: 70,
     is_challenge: false,
+    video_url: 'https://www.youtube.com/watch?v=1F2lP9v-5yQ',
   },
   {
     id: 'desafio_arco_iris',
@@ -243,6 +248,7 @@ export const INITIAL_EXERCISES: Exercise[] = [
     min_level: 5,
     xp_reward: 80,
     is_challenge: false,
+    video_url: 'https://www.youtube.com/watch?v=1YmN3BwU6lE',
   }
 ];
 

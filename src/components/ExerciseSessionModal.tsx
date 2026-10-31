@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { Exercise, SessionSaveResult } from '../types';
 import { useVocalAudio } from '../hooks/useVocalAudio';
+import { getYouTubeEmbedUrl } from '../utils/youtube';
 
 interface ExerciseSessionModalProps {
   exercise: Exercise;
@@ -61,6 +62,7 @@ export const ExerciseSessionModal: React.FC<ExerciseSessionModalProps> = ({
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [isMicActive, setIsMicActive] = useState<boolean>(false);
   const [isPlayingReferenceTone, setIsPlayingReferenceTone] = useState<boolean>(false);
+  const [showVideoInPrep, setShowVideoInPrep] = useState<boolean>(Boolean(exercise.video_url));
 
   // Pitch accuracy tracking
   const pitchSamplesRef = useRef<number[]>([]);
@@ -295,6 +297,46 @@ export const ExerciseSessionModal: React.FC<ExerciseSessionModalProps> = ({
                   {exercise.description}
                 </p>
               </div>
+
+              {/* YouTube Video Demonstration Box */}
+              {exercise.video_url && (
+                <div className="bg-red-50/60 dark:bg-red-950/20 border border-red-200/80 dark:border-red-900/50 rounded-2xl p-4 text-left space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-red-600 text-white flex items-center justify-center shrink-0">
+                        <Play className="w-3 h-3 fill-white ml-0.5" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider block">
+                          Demonstração da Fonoaudióloga
+                        </span>
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                          Veja como executar este exercício
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowVideoInPrep(!showVideoInPrep)}
+                      className="px-3 py-1 text-xs font-bold text-red-700 dark:text-red-300 bg-white dark:bg-slate-800 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-100 dark:hover:bg-red-950/60 transition-colors shadow-xs"
+                    >
+                      {showVideoInPrep ? 'Ocultar Vídeo' : 'Assistir Vídeo (YouTube)'}
+                    </button>
+                  </div>
+
+                  {showVideoInPrep && getYouTubeEmbedUrl(exercise.video_url) && (
+                    <div className="relative aspect-video w-full rounded-xl overflow-hidden border border-red-200 dark:border-red-800 shadow-md bg-black animate-in fade-in">
+                      <iframe
+                        src={getYouTubeEmbedUrl(exercise.video_url)!}
+                        title={`Demonstração de ${exercise.title}`}
+                        className="w-full h-full border-0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Reference Tone & Microphone Test Box */}
               <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700 text-left space-y-3">

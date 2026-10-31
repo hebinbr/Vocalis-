@@ -330,6 +330,19 @@ function initDatabaseTables(db: any) {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS vocal_symptoms (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      entry_date TEXT NOT NULL,
+      vocal_effort INTEGER DEFAULT 2,
+      fatigue_score INTEGER DEFAULT 2,
+      symptoms_json TEXT DEFAULT '[]',
+      triggers_json TEXT DEFAULT '[]',
+      notes_enc TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users (id)
+    );
+
     CREATE TABLE IF NOT EXISTS security_audit (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       event_type TEXT NOT NULL,
@@ -337,6 +350,23 @@ function initDatabaseTables(db: any) {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  // Garante colunas de vídeo no YouTube e personalização de prescrição da fonoaudióloga
+  try { db.exec('ALTER TABLE exercises ADD COLUMN video_url TEXT;'); } catch {}
+  try { db.exec('ALTER TABLE exercises ADD COLUMN therapist_id INTEGER;'); } catch {}
+  try { db.exec('ALTER TABLE exercises ADD COLUMN created_by_name TEXT;'); } catch {}
+  try { db.exec('ALTER TABLE exercises ADD COLUMN patient_id INTEGER;'); } catch {}
+  try { db.exec('ALTER TABLE exercises ADD COLUMN is_custom INTEGER DEFAULT 0;'); } catch {}
+
+  // Atualiza links de vídeo dos exercícios padrão se ainda não tiverem
+  try {
+    db.prepare("UPDATE exercises SET video_url = 'https://www.youtube.com/watch?v=0h9Vp1Xb1l8' WHERE id = 'vib_labios' AND (video_url IS NULL OR video_url = '')").run();
+    db.prepare("UPDATE exercises SET video_url = 'https://www.youtube.com/watch?v=8VzGq_Jd_5A' WHERE id = 'canudo_sovte' AND (video_url IS NULL OR video_url = '')").run();
+    db.prepare("UPDATE exercises SET video_url = 'https://www.youtube.com/watch?v=kYJ5o-tKj8U' WHERE id = 'bocejo_suspiro' AND (video_url IS NULL OR video_url = '')").run();
+    db.prepare("UPDATE exercises SET video_url = 'https://www.youtube.com/watch?v=9gWzJgE5GQE' WHERE id = 'humming_mascara' AND (video_url IS NULL OR video_url = '')").run();
+    db.prepare("UPDATE exercises SET video_url = 'https://www.youtube.com/watch?v=1F2lP9v-5yQ' WHERE id = 'glissando_sirene' AND (video_url IS NULL OR video_url = '')").run();
+    db.prepare("UPDATE exercises SET video_url = 'https://www.youtube.com/watch?v=1YmN3BwU6lE' WHERE id = 'vocal_fry' AND (video_url IS NULL OR video_url = '')").run();
+  } catch {}
 
   // Auto-seed de Usuários e Códigos Clínicos se vazio
   try {
@@ -667,6 +697,49 @@ function initDatabaseTables(db: any) {
   } catch (err) {
     console.warn('[Vocalis SQLite Seed Error - Logs]:', err);
   }
+
+  // Auto-seed de Sintomas Vocais se vazio
+  try {
+    const sympCount: any = db.prepare('SELECT COUNT(*) as count FROM vocal_symptoms').get();
+    if (!sympCount || sympCount.count === 0) {
+      const today = new Date();
+      const d1 = new Date(today); d1.setDate(today.getDate() - 1);
+      const d2 = new Date(today); d2.setDate(today.getDate() - 3);
+      const d3 = new Date(today); d3.setDate(today.getDate() - 5);
+
+      db.prepare(`
+        INSERT INTO vocal_symptoms (user_id, entry_date, vocal_effort, fatigue_score, symptoms_json, triggers_json, notes_enc)
+        VALUES (2, ?, 3, 4, ?, ?, ?)
+      `).run(
+        d1.toISOString().split('T')[0],
+        JSON.stringify(['Rouquidão matinal', 'Pigarro persistente', 'Tensão cervical']),
+        JSON.stringify(['Uso vocal prolongado (6 aulas)', 'Ar-condicionado da escola']),
+        encryptText('Garganta áspera após dar aulas consecutivas sem microfone. O exercício de vibração labial prescrito pela fonoaudióloga aliviou a tensão na laringe antes de dormir.')
+      );
+
+      db.prepare(`
+        INSERT INTO vocal_symptoms (user_id, entry_date, vocal_effort, fatigue_score, symptoms_json, triggers_json, notes_enc)
+        VALUES (2, ?, 2, 3, ?, ?, ?)
+      `).run(
+        d2.toISOString().split('T')[0],
+        JSON.stringify(['Cansaço ao final do dia', 'Secura na boca']),
+        JSON.stringify(['Pouca água durante a tarde']),
+        encryptText('Bebi apenas 1 litro de água hoje. Senti a voz um pouco mais pesada para projetar na sala de aula, mas sem dor glótica.')
+      );
+
+      db.prepare(`
+        INSERT INTO vocal_symptoms (user_id, entry_date, vocal_effort, fatigue_score, symptoms_json, triggers_json, notes_enc)
+        VALUES (2, ?, 2, 2, ?, ?, ?)
+      `).run(
+        d3.toISOString().split('T')[0],
+        JSON.stringify(['Leve pigarro transitório']),
+        JSON.stringify(['Poeira de giz']),
+        encryptText('Dia produtivo e voz equilibrada. Pratiquei o canudo d''água (SOVTE) às 14h conforme o plano prescrito.')
+      );
+    }
+  } catch (err) {
+    console.warn('[Vocalis SQLite Seed Error - Symptoms]:', err);
+  }
 }
 
 // Operações da API
@@ -748,26 +821,141 @@ export const sqliteService = {
     return this.getPatient(userId);
   },
 
-  getExercises() {
+  getExercises(patientId?: number) {
     const db = getDatabase();
-    const rows = db.prepare('SELECT * FROM exercises ORDER BY min_level ASC, is_challenge ASC, id ASC').all();
+    let query = 'SELECT * FROM exercises WHERE (patient_id IS NULL OR patient_id = 0';
+    const params: any[] = [];
+    if (patientId) {
+      query += ' OR patient_id = ?';
+      params.push(patientId);
+    }
+    query += ') ORDER BY is_custom DESC, min_level ASC, is_challenge ASC, id ASC';
+    const rows = db.prepare(query).all(...params);
     return rows.map((r: any) => ({
       id: r.id,
       title: r.title,
       category: r.category,
-      target_range: r.target_range,
+      target_range: r.target_range || 'Frequência Confortável',
       description: r.description,
-      benefits: r.benefits,
-      instructions: r.instructions ? JSON.parse(r.instructions) : [],
-      default_reps: r.default_reps,
-      default_duration_sec: r.default_duration_sec,
-      target_hz: r.target_hz,
-      caution_tips: r.caution_tips,
-      icon_name: r.icon_name,
+      benefits: r.benefits || '',
+      instructions: r.instructions ? (typeof r.instructions === 'string' ? JSON.parse(r.instructions) : r.instructions) : [],
+      default_reps: r.default_reps || 3,
+      default_duration_sec: r.default_duration_sec || 60,
+      target_hz: r.target_hz || 220,
+      caution_tips: r.caution_tips || '',
+      icon_name: r.icon_name || 'Activity',
       min_level: r.min_level ?? 1,
       xp_reward: r.xp_reward ?? 45,
-      is_challenge: Boolean(r.is_challenge)
+      is_challenge: Boolean(r.is_challenge),
+      video_url: r.video_url || undefined,
+      therapist_id: r.therapist_id || undefined,
+      created_by_name: r.created_by_name || undefined,
+      patient_id: r.patient_id || undefined,
+      is_custom: Boolean(r.is_custom)
     }));
+  },
+
+  addExercise(data: any, therapistId: number = 1, therapistName: string = 'Dra. Beatriz Menezes') {
+    const db = getDatabase();
+    const id = data.id || `custom_${Date.now()}`;
+    const title = data.title || 'Novo Exercício Vocal';
+    const category = data.category || 'Trato Vocal Semiocluído';
+    const targetRange = data.target_range || 'Frequência Confortável';
+    const description = data.description || '';
+    const benefits = data.benefits || '';
+    const instructionsStr = JSON.stringify(Array.isArray(data.instructions) ? data.instructions : [data.instructions || 'Siga as orientações da sua fonoaudióloga.']);
+    const defaultReps = Number(data.default_reps || 3);
+    const defaultDurationSec = Number(data.default_duration_sec || 60);
+    const targetHz = Number(data.target_hz || 220);
+    const cautionTips = data.caution_tips || 'Interrompa caso sinta dor, esforço exagerado ou desconforto vocal.';
+    const iconName = data.icon_name || 'Sparkles';
+    const minLevel = Number(data.min_level || 1);
+    const xpReward = Number(data.xp_reward || 45);
+    const isChallenge = data.is_challenge ? 1 : 0;
+    const videoUrl = data.video_url || '';
+    const patientId = data.patient_id ? Number(data.patient_id) : null;
+
+    db.prepare(`
+      INSERT INTO exercises (
+        id, title, category, target_range, description, benefits, instructions,
+        default_reps, default_duration_sec, target_hz, caution_tips, icon_name,
+        min_level, xp_reward, is_challenge, video_url, therapist_id, created_by_name, patient_id, is_custom
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    `).run(
+      id, title, category, targetRange, description, benefits, instructionsStr,
+      defaultReps, defaultDurationSec, targetHz, cautionTips, iconName,
+      minLevel, xpReward, isChallenge, videoUrl, therapistId, therapistName, patientId
+    );
+
+    return {
+      success: true,
+      exercise: {
+        id, title, category, target_range: targetRange, description, benefits,
+        instructions: JSON.parse(instructionsStr),
+        default_reps: defaultReps,
+        default_duration_sec: defaultDurationSec,
+        target_hz: targetHz,
+        caution_tips: cautionTips,
+        icon_name: iconName,
+        min_level: minLevel,
+        xp_reward: xpReward,
+        is_challenge: Boolean(isChallenge),
+        video_url: videoUrl,
+        therapist_id: therapistId,
+        created_by_name: therapistName,
+        patient_id: patientId,
+        is_custom: true
+      }
+    };
+  },
+
+  updateExercise(id: string, data: any) {
+    const db = getDatabase();
+    const existing: any = db.prepare('SELECT * FROM exercises WHERE id = ?').get(id);
+    if (!existing) {
+      throw new Error('Exercício não encontrado');
+    }
+
+    const title = data.title ?? existing.title;
+    const category = data.category ?? existing.category;
+    const targetRange = data.target_range ?? existing.target_range;
+    const description = data.description ?? existing.description;
+    const benefits = data.benefits ?? existing.benefits;
+    const instructionsStr = data.instructions ? JSON.stringify(data.instructions) : existing.instructions;
+    const defaultReps = data.default_reps ? Number(data.default_reps) : existing.default_reps;
+    const defaultDurationSec = data.default_duration_sec ? Number(data.default_duration_sec) : existing.default_duration_sec;
+    const targetHz = data.target_hz ? Number(data.target_hz) : existing.target_hz;
+    const cautionTips = data.caution_tips ?? existing.caution_tips;
+    const videoUrl = data.video_url !== undefined ? data.video_url : existing.video_url;
+    const patientId = data.patient_id !== undefined ? (data.patient_id ? Number(data.patient_id) : null) : existing.patient_id;
+
+    db.prepare(`
+      UPDATE exercises SET
+        title = ?,
+        category = ?,
+        target_range = ?,
+        description = ?,
+        benefits = ?,
+        instructions = ?,
+        default_reps = ?,
+        default_duration_sec = ?,
+        target_hz = ?,
+        caution_tips = ?,
+        video_url = ?,
+        patient_id = ?
+      WHERE id = ?
+    `).run(
+      title, category, targetRange, description, benefits, instructionsStr,
+      defaultReps, defaultDurationSec, targetHz, cautionTips, videoUrl, patientId, id
+    );
+
+    return { success: true, message: 'Exercício atualizado com sucesso' };
+  },
+
+  deleteExercise(id: string) {
+    const db = getDatabase();
+    db.prepare('DELETE FROM exercises WHERE id = ?').run(id);
+    return { success: true, message: 'Exercício removido' };
   },
 
   getLogs(userId?: number) {
@@ -1454,5 +1642,75 @@ export const sqliteService = {
       available_codes: codes.filter((c: any) => !c.is_used).length,
       active_patients: patients.length
     };
+  },
+
+  getSymptoms(userId?: number) {
+    const db = getDatabase();
+    let query = `
+      SELECT s.*, u.name as patient_name
+      FROM vocal_symptoms s
+      LEFT JOIN users u ON u.id = s.user_id
+    `;
+    const params: any[] = [];
+    if (userId) {
+      query += ' WHERE s.user_id = ?';
+      params.push(userId);
+    }
+    query += ' ORDER BY s.entry_date DESC, s.id DESC';
+    const rows = db.prepare(query).all(...params);
+
+    return rows.map((r: any) => ({
+      id: r.id,
+      user_id: r.user_id,
+      patient_name: r.patient_name || 'Paciente',
+      entry_date: r.entry_date,
+      vocal_effort: r.vocal_effort,
+      fatigue_score: r.fatigue_score,
+      symptoms: r.symptoms_json ? (typeof r.symptoms_json === 'string' ? JSON.parse(r.symptoms_json) : r.symptoms_json) : [],
+      triggers: r.triggers_json ? (typeof r.triggers_json === 'string' ? JSON.parse(r.triggers_json) : r.triggers_json) : [],
+      notes: r.notes_enc ? decryptText(r.notes_enc) : '',
+      created_at: r.created_at
+    }));
+  },
+
+  addSymptom(data: any, userId?: number) {
+    const db = getDatabase();
+    const uid = userId || data.user_id || 2;
+    const entryDate = data.entry_date || new Date().toISOString().split('T')[0];
+    const vocalEffort = Number(data.vocal_effort ?? 2);
+    const fatigueScore = Number(data.fatigue_score ?? 2);
+    const symptomsJson = JSON.stringify(Array.isArray(data.symptoms) ? data.symptoms : []);
+    const triggersJson = JSON.stringify(Array.isArray(data.triggers) ? data.triggers : []);
+    const notesEnc = encryptText(data.notes || '');
+
+    const res = db.prepare(`
+      INSERT INTO vocal_symptoms (user_id, entry_date, vocal_effort, fatigue_score, symptoms_json, triggers_json, notes_enc)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(uid, entryDate, vocalEffort, fatigueScore, symptomsJson, triggersJson, notesEnc);
+
+    const insertedId = Number(res.lastInsertRowid);
+    const userRow: any = db.prepare('SELECT name FROM users WHERE id = ?').get(uid);
+
+    return {
+      success: true,
+      symptom: {
+        id: insertedId,
+        user_id: uid,
+        patient_name: userRow?.name || 'Paciente',
+        entry_date: entryDate,
+        vocal_effort: vocalEffort,
+        fatigue_score: fatigueScore,
+        symptoms: data.symptoms || [],
+        triggers: data.triggers || [],
+        notes: data.notes || '',
+        created_at: new Date().toISOString()
+      }
+    };
+  },
+
+  deleteSymptom(id: number) {
+    const db = getDatabase();
+    db.prepare('DELETE FROM vocal_symptoms WHERE id = ?').run(id);
+    return { success: true, id };
   }
 };

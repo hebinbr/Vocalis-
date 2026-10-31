@@ -8,7 +8,8 @@ import {
   SessionSaveResult,
   User,
   TherapistDashboardData,
-  AccessCode
+  AccessCode,
+  VocalSymptomEntry
 } from '../types';
 
 /**
@@ -111,8 +112,31 @@ export const api = {
     });
   },
 
-  async getExercises(): Promise<Exercise[]> {
-    return fetchJsonWithRetry('/api/exercises');
+  async getExercises(patientId?: number): Promise<Exercise[]> {
+    const url = patientId ? `/api/exercises?patient_id=${patientId}` : '/api/exercises';
+    return fetchJsonWithRetry(url);
+  },
+
+  async createExercise(data: Partial<Exercise> & { therapist_id?: number; created_by_name?: string }): Promise<{ success: boolean; exercise: Exercise }> {
+    return fetchJsonWithRetry('/api/exercises', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  },
+
+  async updateExercise(id: string, data: Partial<Exercise>): Promise<{ success: boolean; message: string }> {
+    return fetchJsonWithRetry(`/api/exercises/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  },
+
+  async deleteExercise(id: string): Promise<{ success: boolean; message: string }> {
+    return fetchJsonWithRetry(`/api/exercises/${id}`, {
+      method: 'DELETE'
+    });
   },
 
   async getLogs(userId?: number): Promise<ExerciseLog[]> {
@@ -180,5 +204,25 @@ export const api = {
 
   async getSecurityAudit(): Promise<SecurityAudit> {
     return fetchJsonWithRetry('/api/security/audit');
+  },
+
+  // Diário de Sintomas Vocais
+  async getSymptoms(userId?: number): Promise<VocalSymptomEntry[]> {
+    const url = userId ? `/api/symptoms?user_id=${userId}` : '/api/symptoms';
+    return fetchJsonWithRetry(url);
+  },
+
+  async addSymptom(data: Partial<VocalSymptomEntry>, userId?: number): Promise<{ success: boolean; symptom: VocalSymptomEntry }> {
+    return fetchJsonWithRetry('/api/symptoms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...data, user_id: userId })
+    });
+  },
+
+  async deleteSymptom(id: number): Promise<{ success: boolean; id: number }> {
+    return fetchJsonWithRetry(`/api/symptoms/${id}`, {
+      method: 'DELETE'
+    });
   }
 };

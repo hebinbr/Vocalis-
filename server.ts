@@ -165,6 +165,11 @@ function handleNativeSqliteRoute(req: Request, res: Response): boolean {
         res.json(sqliteService.getTherapistDashboardData(therapistId));
         return true;
       }
+      if (urlPath === '/api/symptoms') {
+        const userId = req.query.user_id ? Number(req.query.user_id) : undefined;
+        res.json(sqliteService.getSymptoms(userId));
+        return true;
+      }
     }
 
     if (method === 'POST') {
@@ -202,12 +207,30 @@ function handleNativeSqliteRoute(req: Request, res: Response): boolean {
         res.status(201).json(result);
         return true;
       }
+      if (urlPath === '/api/exercises') {
+        const therapistId = req.body?.therapist_id ? Number(req.body.therapist_id) : 1;
+        const therapistName = req.body?.created_by_name || 'Dra. Beatriz Menezes';
+        const result = sqliteService.addExercise(req.body, therapistId, therapistName);
+        res.status(201).json(result);
+        return true;
+      }
+      if (urlPath === '/api/symptoms') {
+        const userId = req.body?.user_id ? Number(req.body.user_id) : undefined;
+        const result = sqliteService.addSymptom(req.body, userId);
+        res.status(201).json(result);
+        return true;
+      }
     }
 
     if (method === 'PUT') {
       if (urlPath === '/api/patient') {
         const userId = req.body?.user_id ? Number(req.body.user_id) : undefined;
         res.json(sqliteService.updatePatient(req.body, userId));
+        return true;
+      }
+      if (urlPath.startsWith('/api/exercises/')) {
+        const id = urlPath.split('/').pop() || '';
+        res.json(sqliteService.updateExercise(id, req.body));
         return true;
       }
       if (urlPath.startsWith('/api/reminders/')) {
@@ -218,6 +241,11 @@ function handleNativeSqliteRoute(req: Request, res: Response): boolean {
     }
 
     if (method === 'DELETE') {
+      if (urlPath.startsWith('/api/exercises/')) {
+        const id = urlPath.split('/').pop() || '';
+        res.json(sqliteService.deleteExercise(id));
+        return true;
+      }
       if (urlPath.startsWith('/api/logs/')) {
         const id = Number(urlPath.split('/').pop());
         res.json(sqliteService.deleteLog(id));
@@ -226,6 +254,11 @@ function handleNativeSqliteRoute(req: Request, res: Response): boolean {
       if (urlPath.startsWith('/api/reminders/')) {
         const id = Number(urlPath.split('/').pop());
         res.json(sqliteService.deleteReminder(id));
+        return true;
+      }
+      if (urlPath.startsWith('/api/symptoms/')) {
+        const id = Number(urlPath.split('/').pop());
+        res.json(sqliteService.deleteSymptom(id));
         return true;
       }
     }
@@ -259,7 +292,7 @@ app.all('/api/*', async (req: Request, res: Response) => {
       }
 
       const pyRes = await fetch(pythonUrl, fetchOptions);
-      if (pyRes.ok || pyRes.status < 500) {
+      if (pyRes.ok || (pyRes.status < 500 && pyRes.status !== 404)) {
         const contentType = pyRes.headers.get('content-type') || 'application/json';
         res.status(pyRes.status);
         res.setHeader('Content-Type', contentType);
@@ -280,9 +313,8 @@ app.all('/api/*', async (req: Request, res: Response) => {
 
 // Setup Vite middleware in dev or static files in production
 async function setupFrontend() {
+  const isDev = process.env.NODE_ENV !== 'production';
   const distPath = path.join(__dirname, 'dist');
-  const hasDist = fs.existsSync(path.join(distPath, 'index.html'));
-  const isDev = process.env.NODE_ENV === 'development' || (!hasDist && process.env.NODE_ENV !== 'production');
 
   if (isDev) {
     const { createServer } = await import('vite');

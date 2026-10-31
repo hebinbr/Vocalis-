@@ -19,11 +19,13 @@ import {
   Trophy,
   Zap,
   KeyRound,
-  AlertCircle
+  AlertCircle,
+  Play
 } from 'lucide-react';
 import { Exercise, User } from '../types';
 import { DailyVocalTip } from './DailyVocalTip';
 import { ActivationCodePrompt } from './ActivationCodePrompt';
+import { YouTubeVideoModal } from './YouTubeVideoModal';
 import vocalAnatomyImg from '../assets/images/vocal_anatomy_guide_1793024499378.jpg';
 
 interface ExerciseCatalogProps {
@@ -61,6 +63,7 @@ export const ExerciseCatalog: React.FC<ExerciseCatalogProps> = ({
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
   const [selectedExerciseForTips, setSelectedExerciseForTips] = useState<Exercise | null>(null);
+  const [selectedVideoExercise, setSelectedVideoExercise] = useState<Exercise | null>(null);
   const [showActivationModal, setShowActivationModal] = useState<boolean>(false);
 
   const filteredExercises = exercises.filter((ex) => {
@@ -244,7 +247,22 @@ export const ExerciseCatalog: React.FC<ExerciseCatalogProps> = ({
                     {getExerciseIcon(exercise.icon_name)}
                   </div>
 
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                    {exercise.video_url && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedVideoExercise(exercise);
+                        }}
+                        className="text-[10px] font-bold text-red-700 dark:text-red-300 bg-red-50 hover:bg-red-100 dark:bg-red-950/70 dark:hover:bg-red-900/80 px-2 py-0.5 rounded-md border border-red-200 dark:border-red-800/80 flex items-center gap-1 transition-colors shadow-2xs"
+                        title="Assistir demonstração em vídeo no YouTube"
+                      >
+                        <Play className="w-2.5 h-2.5 fill-current" />
+                        <span>Vídeo da Fono</span>
+                      </button>
+                    )}
+
                     {exercise.is_challenge && (
                       <span className="text-[10px] font-bold text-amber-900 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/60 px-2 py-0.5 rounded-md border border-amber-300 dark:border-amber-800 flex items-center gap-1">
                         <Trophy className="w-3 h-3 text-amber-600 dark:text-amber-400" />
@@ -315,6 +333,17 @@ export const ExerciseCatalog: React.FC<ExerciseCatalogProps> = ({
                   >
                     <Info className="w-4 h-4" />
                   </button>
+
+                  {exercise.video_url && (
+                    <button
+                      onClick={() => setSelectedVideoExercise(exercise)}
+                      className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/60 rounded-lg transition-colors"
+                      title="Assistir demonstração de como fazer este exercício (Vídeo do YouTube)"
+                      aria-label="Assistir Vídeo Demonstrativo"
+                    >
+                      <Play className="w-4 h-4 fill-current" />
+                    </button>
+                  )}
 
                   {isLevelLocked ? (
                     <div
@@ -455,6 +484,18 @@ export const ExerciseCatalog: React.FC<ExerciseCatalogProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal de Vídeo Demonstrativo no YouTube */}
+      {selectedVideoExercise && (
+        <YouTubeVideoModal
+          exercise={selectedVideoExercise}
+          onClose={() => setSelectedVideoExercise(null)}
+          onStartExercise={(ex) => {
+            setSelectedVideoExercise(null);
+            handleExerciseClick(ex);
+          }}
+        />
       )}
     </div>
   );

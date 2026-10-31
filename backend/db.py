@@ -218,9 +218,26 @@ def init_db():
         icon_name TEXT DEFAULT 'Activity',
         min_level INTEGER DEFAULT 1,
         xp_reward INTEGER DEFAULT 45,
-        is_challenge INTEGER DEFAULT 0
+        is_challenge INTEGER DEFAULT 0,
+        video_url TEXT,
+        therapist_id INTEGER,
+        created_by_name TEXT,
+        patient_id INTEGER,
+        is_custom INTEGER DEFAULT 0
     );
     """)
+
+    for col, col_type in [
+        ("video_url", "TEXT"),
+        ("therapist_id", "INTEGER"),
+        ("created_by_name", "TEXT"),
+        ("patient_id", "INTEGER"),
+        ("is_custom", "INTEGER DEFAULT 0")
+    ]:
+        try:
+            cursor.execute(f"ALTER TABLE exercises ADD COLUMN {col} {col_type}")
+        except Exception:
+            pass
 
     # Tabela de Registros de Exercícios (Logs)
     cursor.execute("""
@@ -964,7 +981,7 @@ def update_patient(data, user_id=None):
 
 def get_all_exercises():
     conn = get_connection()
-    rows = conn.execute("SELECT * FROM exercises ORDER BY min_level ASC, is_challenge ASC, id ASC").fetchall()
+    rows = conn.execute("SELECT * FROM exercises ORDER BY is_custom DESC, min_level ASC, is_challenge ASC, id ASC").fetchall()
     conn.close()
     results = []
     for r in rows:
@@ -983,9 +1000,134 @@ def get_all_exercises():
             "icon_name": r["icon_name"],
             "min_level": r["min_level"] if "min_level" in r.keys() else 1,
             "xp_reward": r["xp_reward"] if "xp_reward" in r.keys() else 45,
-            "is_challenge": bool(r["is_challenge"]) if "is_challenge" in r.keys() else False
+            "is_challenge": bool(r["is_challenge"]) if "is_challenge" in r.keys() else False,
+            "video_url": r["video_url"] if "video_url" in r.keys() else None,
+            "therapist_id": r["therapist_id"] if "therapist_id" in r.keys() else None,
+            "created_by_name": r["created_by_name"] if "created_by_name" in r.keys() else None,
+            "patient_id": r["patient_id"] if "patient_id" in r.keys() else None,
+            "is_custom": bool(r["is_custom"]) if "is_custom" in r.keys() else False
         })
     return results
+
+
+def add_exercise(data, therapist_id=1, therapist_name="Dra. Beatriz Menezes"):
+    import time
+    conn = get_connection()
+    cursor = conn.cursor()
+    ex_id = data.get("id") or f"custom_{int(time.time() * 1000)}"
+    title = data.get("title", "Novo Exercício Vocal")
+    category = data.get("category", "Trato Vocal Semiocluído")
+    target_range = data.get("target_range", "Frequência Confortável")
+    description = data.get("description", "")
+    benefits = data.get("benefits", "")
+    instructions = data.get("instructions", [])
+    if isinstance(instructions, str):
+        instructions = [instructions]
+    instructions_json = json.dumps(instructions)
+    default_reps = int(data.get("default_reps", 3))
+    default_duration_sec = int(data.get("default_duration_sec", 60))
+    target_hz = int(data.get("target_hz", 220))
+    caution_tips = data.get("caution_tips", "Interrompa caso sinta dor ou desconforto vocal.")
+    icon_name = data.get("icon_name", "Sparkles")
+    min_level = int(data.get("min_level", 1))
+    xp_reward = int(data.get("xp_reward", 45))
+    is_challenge = 1 if data.get("is_challenge") else 0
+    video_url = data.get("video_url") or None
+    patient_id = int(data.get("patient_id")) if data.get("patient_id") else None
+
+    cursor.execute("""
+    INSERT INTO exercises (
+        id, title, category, target_range, description, benefits, instructions,
+        default_reps, default_duration_sec, target_hz, caution_tips, icon_name,
+        min_level, xp_reward, is_challenge, video_url, therapist_id, created_by_name, patient_id, is_custom
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    """, (
+        ex_id, title, category, target_range, description, benefits, instructions_json,
+        default_reps, default_duration_sec, target_hz, caution_tips, icon_name,
+        min_level, xp_reward, is_challenge, video_url, therapist_id, therapist_name, patient_id
+    ))
+    conn.commit()
+    conn.close()
+
+    return {
+        "success": True,
+        "exercise": {
+            "id": ex_id,
+            "title": title,
+            "category": category,
+            "target_range": target_range,
+            "description": description,
+            "benefits": benefits,
+            "instructions": instructions,
+            "default_reps": default_reps,
+            "default_duration_sec": default_duration_sec,
+            "target_hz": target_hz,
+            "caution_tips": caution_tips,
+            "icon_name": icon_name,
+            "min_level": min_level,
+            "xp_reward": xp_reward,
+            "is_challenge": bool(is_challenge),
+            "video_url": video_url,
+            "therapist_id": therapist_id,
+            "created_by_name": therapist_name,
+            "patient_id": patient_id,
+            "is_custom": True
+        }
+    }
+
+
+def update_exercise(ex_id, data):
+    conn = get_connection()
+    cursor = conn.cursor()
+    existing = cursor.execute("SELECT * FROM exercises WHERE id = ?", (ex_id,)).fetchone()
+    if not existing:
+        conn.close()
+        return None
+
+    title = data.get("title", existing["title"])
+    category = data.get("category", existing["category"])
+    target_range = data.get("target_range", existing["target_range"])
+    description = data.get("description", existing["description"])
+    benefits = data.get("benefits", existing["benefits"])
+    instructions = data.get("instructions")
+    if instructions is not None:
+        instructions_json = json.dumps(instructions if isinstance(instructions, list) else [instructions])
+    else:
+        instructions_json = existing["instructions"]
+    default_reps = int(data.get("default_reps", existing["default_reps"]))
+    default_duration_sec = int(data.get("default_duration_sec", existing["default_duration_sec"]))
+    target_hz = int(data.get("target_hz", existing["target_hz"]))
+    caution_tips = data.get("caution_tips", existing["caution_tips"])
+    min_level = int(data.get("min_level", existing["min_level"]))
+    xp_reward = int(data.get("xp_reward", existing["xp_reward"]))
+    is_challenge = 1 if data.get("is_challenge", existing["is_challenge"]) else 0
+    video_url = data.get("video_url", existing["video_url"] if "video_url" in existing.keys() else None)
+    patient_id = data.get("patient_id", existing["patient_id"] if "patient_id" in existing.keys() else None)
+
+    cursor.execute("""
+    UPDATE exercises SET
+        title = ?, category = ?, target_range = ?, description = ?, benefits = ?,
+        instructions = ?, default_reps = ?, default_duration_sec = ?, target_hz = ?,
+        caution_tips = ?, min_level = ?, xp_reward = ?, is_challenge = ?,
+        video_url = ?, patient_id = ?
+    WHERE id = ?
+    """, (
+        title, category, target_range, description, benefits, instructions_json,
+        default_reps, default_duration_sec, target_hz, caution_tips, min_level,
+        xp_reward, is_challenge, video_url, patient_id, ex_id
+    ))
+    conn.commit()
+    conn.close()
+    return {"success": True, "id": ex_id}
+
+
+def delete_exercise(ex_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM exercises WHERE id = ?", (ex_id,))
+    conn.commit()
+    conn.close()
+    return {"success": True, "deleted_id": ex_id}
 
 
 def get_all_logs(user_id=None):

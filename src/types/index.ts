@@ -88,6 +88,11 @@ export interface Exercise {
   min_level: number;
   xp_reward: number;
   is_challenge: boolean;
+  video_url?: string;
+  therapist_id?: number;
+  created_by_name?: string;
+  patient_id?: number | null;
+  is_custom?: boolean;
 }
 
 export interface ExerciseLog {
@@ -204,4 +209,17 @@ export interface SecurityAudit {
     raw_encrypted_title: string;
     decrypted_title: string;
   }>;
+}
+
+export interface VocalSymptomEntry {
+  id: number;
+  user_id: number;
+  patient_name?: string;
+  entry_date: string;
+  vocal_effort: number;
+  fatigue_score: number;
+  symptoms: string[];
+  triggers: string[];
+  notes: string;
+  created_at: string;
 }

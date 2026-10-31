@@ -1,16 +1,13 @@
 /**
  * Vocalis - Service Worker PWA (service-worker.js)
- * Versão v10: Network-First com limpeza ativa de caches legados e suporte offline.
+ * Versão v11: Estratégia segura, sem interceptar módulos do Vite, suporte a Push Notifications.
  */
 
-const CACHE_NAME = 'vocalis-cache-v10';
+const CACHE_NAME = 'vocalis-cache-v11';
 
+// Apenas ativos estáticos imutáveis são pré-cacheados (nunca o HTML dinâmico ou scripts JS)
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
   '/icon.svg',
-  '/images/avatar_therapist_1793024499041.jpg',
-  '/images/vocal_anatomy_guide_1793024499378.jpg',
   '/reminder-worker.js'
 ];
 
@@ -38,19 +35,11 @@ self.addEventListener('activate', (event) => {
             return caches.delete(name);
           })
       );
-    }).then(async () => {
-      await self.clients.claim();
-      // Notifica todas as abas abertas para recarregar o bundle atualizado
-      const allClients = await self.clients.matchAll({ type: 'window' });
-      for (const client of allClients) {
-        client.postMessage({ type: 'SW_UPDATED', version: CACHE_NAME });
-      }
-    })
+    }).then(() => self.clients.claim())
   );
 });
 
-// Estratégia Network-First: Sempre busca a versão mais recente na rede.
-// Se estiver offline ou a conexão cair, recorre ao cache local.
+// Interceptação de Fetch com regras estritas de segurança
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
@@ -65,11 +54,28 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-First para todas as requisições (APIs, HTML, JS, CSS e imagens)
+  // NUNCA interceptar requisições do Vite Dev Server ou arquivos de código TypeScript/React
+  if (
+    url.pathname.startsWith('/@') ||
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/node_modules/') ||
+    url.search.includes('import') ||
+    url.search.includes('v=') ||
+    url.pathname.includes('hot-update')
+  ) {
+    return;
+  }
+
+  // Network-First para requisições com fallback seguro
   event.respondWith(
     fetch(request)
       .then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200) {
+        // Apenas faz cache de imagens estáticas ou fontes (evita cachear HTML dinâmico ou APIs)
+        if (
+          networkResponse &&
+          networkResponse.status === 200 &&
+          (url.pathname.startsWith('/images/') || url.pathname.endsWith('.svg') || url.pathname.endsWith('.png') || url.pathname.endsWith('.jpg'))
+        ) {
           const responseClone = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(request, responseClone);
@@ -78,19 +84,11 @@ self.addEventListener('fetch', (event) => {
         return networkResponse;
       })
       .catch(async () => {
-        // Fallback offline: busca do cache
         const cachedResponse = await caches.match(request);
         if (cachedResponse) {
           return cachedResponse;
         }
 
-        // Se for navegação (HTML) e estiver offline, serve index.html
-        if (request.mode === 'navigate') {
-          const cachedIndex = await caches.match('/index.html');
-          if (cachedIndex) return cachedIndex;
-        }
-
-        // Se for API e offline
         if (url.pathname.startsWith('/api/')) {
           return new Response(JSON.stringify({ error: 'Modo Offline', offline: true }), {
             status: 503,
@@ -141,33 +139,23 @@ self.addEventListener('notificationclick', (event) => {
     return;
   }
 
-  const targetUrl = (event.notification.data && event.notification.data.url) || '/';
-
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      for (const client of windowClients) {
-        if (client.url.includes(self.location.origin) && 'focus' in client) {
-          client.navigate(targetUrl);
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // Se houver uma aba aberta do Vocalis, foca nela
+      for (const client of clientList) {
+        if ('focus' in client) {
+          client.postMessage({
+            type: 'START_REMINDER_EXERCISE',
+            reminderData: event.notification.data
+          });
           return client.focus();
         }
       }
+
+      // Se o app estiver fechado em segundo plano, abre a página
       if (self.clients.openWindow) {
-        return self.clients.openWindow(targetUrl);
+        return self.clients.openWindow('/');
       }
     })
   );
-});
-
-// Comunicação com a aplicação
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
-  if (event.data && event.data.type === 'CLEAR_OLD_CACHES') {
-    caches.keys().then((keys) => {
-      keys.forEach((key) => {
-        if (key !== CACHE_NAME) caches.delete(key);
-      });
-    });
-  }
 });
