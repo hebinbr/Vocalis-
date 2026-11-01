@@ -20,7 +20,7 @@ import {
   KeyRound,
   Stethoscope
 } from 'lucide-react';
-import { Patient, Exercise, ExerciseLog, Reminder, ProgressStats, User } from './types';
+import { Patient, Exercise, ExerciseLog, Reminder, ProgressStats, User, VocalSymptomEntry } from './types';
 import {
   INITIAL_PATIENT,
   INITIAL_EXERCISES,
@@ -49,6 +49,7 @@ export default function App() {
   const [logs, setLogs] = useState<ExerciseLog[]>(INITIAL_LOGS);
   const [reminders, setReminders] = useState<Reminder[]>(INITIAL_REMINDERS);
   const [stats, setStats] = useState<ProgressStats>(INITIAL_STATS);
+  const [symptoms, setSymptoms] = useState<VocalSymptomEntry[]>([]);
 
   // Authenticated User State (defaults to Camila, patient with persistent SQLite record)
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -110,13 +111,18 @@ export default function App() {
         console.warn('Stats sync notice:', e);
         return null;
       });
+      const symptomsPromise = api.getSymptoms(currentUser?.id).catch((e) => {
+        console.warn('Symptoms sync notice:', e);
+        return [];
+      });
 
-      const [patientData, exercisesData, logsData, remindersData, statsData] = await Promise.all([
+      const [patientData, exercisesData, logsData, remindersData, statsData, symptomsData] = await Promise.all([
         patientPromise,
         exercisesPromise,
         logsPromise,
         remindersPromise,
         statsPromise,
+        symptomsPromise,
       ]);
 
       if (patientData && patientData.name) {
@@ -133,6 +139,9 @@ export default function App() {
       }
       if (statsData && statsData.level_title) {
         setStats(statsData);
+      }
+      if (Array.isArray(symptomsData)) {
+        setSymptoms(symptomsData);
       }
     } catch (err: any) {
       console.warn(`Background sync attempt ${retryCount + 1} notice:`, err?.message || err);
@@ -321,6 +330,8 @@ export default function App() {
             {currentTab === 'therapist' && currentUser && (
               <TherapistDashboard
                 currentUser={currentUser}
+                symptoms={symptoms}
+                onRefreshSymptoms={() => loadAppData(0)}
                 onSwitchToPatientView={() => setCurrentTab('exercises')}
                 onRefreshExercises={() => loadAppData(0)}
               />
@@ -353,6 +364,10 @@ export default function App() {
                 stats={stats}
                 logs={logs}
                 patient={patient}
+                currentUser={currentUser}
+                symptoms={symptoms}
+                onAddSymptom={(entry) => setSymptoms((prev) => [entry, ...prev])}
+                onDeleteSymptom={(id) => setSymptoms((prev) => prev.filter((s) => s.id !== id))}
                 onSelectExercise={handleSelectExerciseById}
                 onDeleteLog={handleDeleteLog}
               />

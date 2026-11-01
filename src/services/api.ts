@@ -13,29 +13,41 @@ import {
 } from '../types';
 
 /**
- * Utilitário de requisição com auto-retry para garantir alta disponibilidade
- * com o backend local Python SQLite durante transições e requisições simultâneas.
+ * Utilitário de requisição com auto-retry para garantir alta disponibilidade.
+ * Erros 4xx (validação, e-mail duplicado, etc.) são retornados imediatamente
+ * sem retentativas para garantir feedback instantâneo ao usuário.
  */
-async function fetchJsonWithRetry<T>(url: string, options?: RequestInit, maxAttempts = 4): Promise<T> {
+async function fetchJsonWithRetry<T>(url: string, options?: RequestInit, maxAttempts = 3): Promise<T> {
+  const isIdempotent = !options?.method || options.method === 'GET' || options.method === 'HEAD';
+  const attempts = isIdempotent ? maxAttempts : 1;
+
   let lastError: any = null;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
       const res = await fetch(url, options);
       if (!res.ok) {
-        // Se status 502/503/504 (servidor ainda inicializando), tenta novamente
-        if ([502, 503, 504].includes(res.status) && attempt < maxAttempts) {
+        const errJson = await res.json().catch(() => null);
+        const errMsg = errJson?.error || errJson?.message || `Falha na requisição (${res.status})`;
+
+        // Retenta apenas se for erro temporário de gateway do servidor (502/503/504) em requisição idempotente
+        if (isIdempotent && [502, 503, 504].includes(res.status) && attempt < attempts) {
           await new Promise((r) => setTimeout(r, 200 * attempt));
           continue;
         }
-        const errJson = await res.json().catch(() => null);
-        throw new Error(errJson?.error || `Falha na requisição (${res.status})`);
+
+        // Erros de cliente (400, 401, 404, 409) ou mutações falhas: lança imediatamente
+        const err = new Error(errMsg);
+        (err as any).status = res.status;
+        throw err;
       }
       return await res.json();
     } catch (err: any) {
       lastError = err;
-      if (attempt < maxAttempts) {
-        await new Promise((r) => setTimeout(r, 200 * attempt));
+      // Se for erro de status HTTP (já processado acima) ou requisição não idempotente, não retenta
+      if ((err as any).status || !isIdempotent || attempt >= attempts) {
+        throw err;
       }
+      await new Promise((r) => setTimeout(r, 200 * attempt));
     }
   }
   throw lastError;

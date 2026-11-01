@@ -21,25 +21,56 @@ import {
   Shield,
   Check
 } from 'lucide-react';
-import { ProgressStats, ExerciseLog, Patient } from '../types';
+import { ProgressStats, ExerciseLog, Patient, User, VocalSymptomEntry } from '../types';
+import { WeeklyAdherenceChart } from './WeeklyAdherenceChart';
+import { SymptomDiarySection } from './SymptomDiarySection';
+import { api } from '../services/api';
 
 interface VisualProgressDashboardProps {
   stats: ProgressStats | null;
   logs: ExerciseLog[];
   patient: Patient | null;
+  currentUser?: User | null;
+  symptoms?: VocalSymptomEntry[];
   onSelectExercise: (id: string) => void;
   onDeleteLog: (id: number) => void;
+  onAddSymptom?: (entry: VocalSymptomEntry) => void;
+  onDeleteSymptom?: (id: number) => void;
 }
 
 export const VisualProgressDashboard: React.FC<VisualProgressDashboardProps> = ({
   stats,
   logs,
   patient,
+  currentUser,
+  symptoms: propSymptoms,
   onSelectExercise,
   onDeleteLog,
+  onAddSymptom,
+  onDeleteSymptom,
 }) => {
   const [selectedBadgeCategory, setSelectedBadgeCategory] = useState<string>('Todos');
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [localSymptoms, setLocalSymptoms] = useState<VocalSymptomEntry[]>([]);
+
+  React.useEffect(() => {
+    if (propSymptoms) {
+      setLocalSymptoms(propSymptoms);
+    } else {
+      api.getSymptoms(currentUser?.id).then(setLocalSymptoms).catch(() => {});
+    }
+  }, [propSymptoms, currentUser?.id]);
+
+  const handleAddSymptomLocal = (entry: VocalSymptomEntry) => {
+    setLocalSymptoms((prev) => [entry, ...prev]);
+    if (onAddSymptom) onAddSymptom(entry);
+  };
+
+  const handleDeleteSymptomLocal = async (id: number) => {
+    await api.deleteSymptom(id);
+    setLocalSymptoms((prev) => prev.filter((s) => s.id !== id));
+    if (onDeleteSymptom) onDeleteSymptom(id);
+  };
 
   if (!stats) {
     return (
@@ -344,91 +375,20 @@ export const VisualProgressDashboard: React.FC<VisualProgressDashboardProps> = (
         </div>
       </div>
 
-      {/* 7-Day Visual Progress Chart & Weekly Discipline */}
-      <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm transition-colors">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 font-display">
-              Constância nos Últimos 7 Dias
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Minutos de treino vocal realizados comparados à meta diária de {targetMinutes} min
-            </p>
-          </div>
+      {/* 1. Gráfico de Barras de Frequência de Execução Semanal & Adesão Clínica */}
+      <WeeklyAdherenceChart
+        last7Days={stats.last_7_days}
+        logs={logs}
+        patientDailyGoalMinutes={targetMinutes}
+      />
 
-          <div className="flex items-center gap-4 text-xs">
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-md bg-teal-600 dark:bg-teal-500 inline-block"></span>
-              <span className="text-slate-600 dark:text-slate-300">Meta Concluída</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-md bg-teal-200 dark:bg-teal-800 inline-block"></span>
-              <span className="text-slate-600 dark:text-slate-300">Treino Parcial</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-md bg-slate-100 dark:bg-slate-800 inline-block"></span>
-              <span className="text-slate-600 dark:text-slate-300">Sem Registro</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Interactive Bar Columns */}
-        <div className="grid grid-cols-7 gap-2 sm:gap-4 items-end h-44 pt-6 pb-2 border-b border-slate-100 dark:border-slate-800">
-          {stats.last_7_days.map((day, idx) => {
-            const maxDisplay = Math.max(targetMinutes * 1.5, 25);
-            const heightPercent = Math.min(Math.round((day.minutes / maxDisplay) * 100), 100);
-            const isToday = idx === stats.last_7_days.length - 1;
-
-            return (
-              <div key={day.date} className="flex flex-col items-center h-full justify-end group">
-                <div className="text-[11px] font-semibold tabular-nums text-slate-600 dark:text-slate-300 mb-2 opacity-80 group-hover:opacity-100">
-                  {day.minutes > 0 ? `${day.minutes}m` : '-'}
-                </div>
-
-                <div className="w-full max-w-[48px] bg-slate-100 dark:bg-slate-800 rounded-t-xl h-28 relative overflow-hidden flex items-end">
-                  {day.minutes > 0 && (
-                    <div
-                      style={{ height: `${Math.max(heightPercent, 12)}%` }}
-                      className={`w-full rounded-t-xl transition-all duration-700 ${
-                        day.completed
-                          ? 'bg-gradient-to-t from-teal-700 to-teal-500 dark:from-teal-600 dark:to-teal-400'
-                          : 'bg-teal-300 dark:bg-teal-700'
-                      }`}
-                    />
-                  )}
-
-                  {/* Target line indicator */}
-                  <div
-                    style={{ bottom: `${(targetMinutes / maxDisplay) * 100}%` }}
-                    className="absolute left-0 right-0 border-b border-dashed border-slate-300 dark:border-slate-600 pointer-events-none"
-                    title={`Meta: ${targetMinutes}min`}
-                  />
-                </div>
-
-                <div className="mt-3 text-center">
-                  <div
-                    className={`text-xs font-semibold ${
-                      isToday ? 'text-teal-700 dark:text-teal-400 underline font-bold' : 'text-slate-700 dark:text-slate-300'
-                    }`}
-                  >
-                    {day.day_name}
-                  </div>
-                  <div className="text-[10px] text-slate-600 dark:text-slate-400 tabular-nums">
-                    {day.date.split('-').slice(1).reverse().join('/')}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="mt-4 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-          <span>Linha pontilhada indica sua meta diária ({targetMinutes} min)</span>
-          <span className="font-medium text-slate-700 dark:text-slate-300">
-            {stats.last_7_days.filter((d) => d.completed).length} de 7 dias com meta batida
-          </span>
-        </div>
-      </div>
+      {/* 2. Diário de Sintomas & Autoavaliação Vocal */}
+      <SymptomDiarySection
+        symptoms={localSymptoms}
+        currentUser={currentUser}
+        onAddSymptom={handleAddSymptomLocal}
+        onDeleteSymptom={handleDeleteSymptomLocal}
+      />
 
       {/* Galeria de Distintivos / Badges por Marcos Alcançados */}
       <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-5 transition-colors">

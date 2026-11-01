@@ -734,7 +734,7 @@ function initDatabaseTables(db: any) {
         d3.toISOString().split('T')[0],
         JSON.stringify(['Leve pigarro transitório']),
         JSON.stringify(['Poeira de giz']),
-        encryptText('Dia produtivo e voz equilibrada. Pratiquei o canudo d''água (SOVTE) às 14h conforme o plano prescrito.')
+        encryptText("Dia produtivo e voz equilibrada. Pratiquei o canudo d'água (SOVTE) às 14h conforme o plano prescrito.")
       );
     }
   } catch (err) {
@@ -1427,11 +1427,15 @@ export const sqliteService = {
 
       if (activationCode) {
         const codeRow: any = db.prepare('SELECT id, therapist_id, is_used FROM access_codes WHERE code = ?').get(activationCode);
-        if (codeRow && !codeRow.is_used) {
-          isActivated = 1;
-          therapistId = codeRow.therapist_id;
-          codeUsed = activationCode;
+        if (!codeRow) {
+          return { status: 400, body: { error: 'Código de ativação não encontrado. Verifique com sua fonoaudióloga ou deixe o campo em branco.' } };
         }
+        if (codeRow.is_used) {
+          return { status: 400, body: { error: 'Este código de ativação já foi utilizado anteriormente. Solicite um novo código à sua fonoaudióloga ou deixe em branco.' } };
+        }
+        isActivated = 1;
+        therapistId = codeRow.therapist_id;
+        codeUsed = activationCode;
       }
 
       const res = db.prepare(`

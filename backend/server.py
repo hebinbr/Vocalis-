@@ -92,6 +92,11 @@ class VocalisAPIHandler(BaseHTTPRequestHandler):
             self._send_json(dashboard)
             return
 
+        if path == "/api/symptoms":
+            symptoms = db.get_all_symptoms(user_id)
+            self._send_json(symptoms)
+            return
+
         if path == "/api/progress/stats":
             logs = db.get_all_logs(user_id)
             patient = db.get_patient(user_id) or {}
@@ -279,6 +284,12 @@ class VocalisAPIHandler(BaseHTTPRequestHandler):
             self._send_json(res, status=201)
             return
 
+        if path == "/api/symptoms":
+            user_id = data.get("user_id")
+            res = db.add_symptom(data, user_id)
+            self._send_json(res, status=201)
+            return
+
         self._send_json({"error": "Endpoint não encontrado"}, status=404)
 
     def do_PUT(self):
@@ -345,6 +356,16 @@ class VocalisAPIHandler(BaseHTTPRequestHandler):
             try:
                 rem_id = int(path.split("/")[-1])
                 res = db.delete_reminder(rem_id)
+                self._send_json(res)
+                return
+            except Exception as e:
+                self._send_json({"error": str(e)}, status=400)
+                return
+
+        if path.startswith("/api/symptoms/"):
+            try:
+                sym_id = int(path.split("/")[-1])
+                res = db.delete_symptom(sym_id)
                 self._send_json(res)
                 return
             except Exception as e:

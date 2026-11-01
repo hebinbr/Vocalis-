@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Lock,
   Mail,
@@ -33,6 +33,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 }) => {
   const [mode, setMode] = useState<'login' | 'register_patient' | 'register_therapist'>('login');
   const [showPassword, setShowPassword] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialRole === 'fonoaudiologa') {
+        setMode('register_therapist');
+      }
+    }
+  }, [isOpen, initialRole]);
 
   // Form Fields
   const [name, setName] = useState<string>('');
@@ -138,18 +146,34 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   const handleRegisterPatient = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email || !password) {
-      setErrorMsg('Preencha todos os campos obrigatórios.');
+    const cleanName = name.trim();
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password;
+    const cleanConfirm = confirmPassword;
+    const cleanCode = activationCode.trim().toUpperCase();
+
+    if (!cleanName) {
+      setErrorMsg('Por favor, informe seu nome completo.');
       return;
     }
 
-    if (password !== confirmPassword) {
-      setErrorMsg('A confirmação da senha não confere com a senha digitada.');
+    if (!cleanEmail) {
+      setErrorMsg('Por favor, informe seu e-mail.');
       return;
     }
 
-    if (password.length < 6) {
+    if (!cleanPassword) {
+      setErrorMsg('Por favor, crie uma senha de acesso.');
+      return;
+    }
+
+    if (cleanPassword.length < 6) {
       setErrorMsg('A senha precisa ter no mínimo 6 caracteres.');
+      return;
+    }
+
+    if (cleanPassword !== cleanConfirm) {
+      setErrorMsg('A confirmação da senha não confere com a senha digitada. Digite a mesma senha em ambos os campos.');
       return;
     }
 
@@ -158,18 +182,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setErrorMsg(null);
       const res = await api.register({
         role: 'paciente',
-        name,
-        email,
-        password,
-        activation_code: activationCode.trim() || undefined,
+        name: cleanName,
+        email: cleanEmail,
+        password: cleanPassword,
+        activation_code: cleanCode || undefined,
       });
 
-      setSuccessMsg(res.message || 'Cadastro realizado com sucesso!');
+      setSuccessMsg(res.message || 'Cadastro de paciente realizado com sucesso!');
       setTimeout(() => {
         onAuthSuccess(res.user);
         onClose();
         resetForm();
-      }, 500);
+      }, 400);
     } catch (err: any) {
       setErrorMsg(err.message || 'Erro ao realizar cadastro do paciente.');
     } finally {
@@ -179,18 +203,34 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   const handleRegisterTherapist = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email || !password || !phone) {
-      setErrorMsg('Preencha nome, e-mail, telefone e senha.');
+    const cleanName = name.trim();
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPhone = phone.trim();
+    const cleanPassword = password;
+    const cleanConfirm = confirmPassword;
+
+    if (!cleanName) {
+      setErrorMsg('Por favor, informe o nome completo da profissional fonoaudióloga.');
       return;
     }
 
-    if (password !== confirmPassword) {
-      setErrorMsg('A confirmação da senha não confere com a senha digitada.');
+    if (!cleanEmail) {
+      setErrorMsg('Por favor, informe o e-mail profissional.');
       return;
     }
 
-    if (password.length < 6) {
+    if (!cleanPassword) {
+      setErrorMsg('Por favor, crie uma senha de acesso.');
+      return;
+    }
+
+    if (cleanPassword.length < 6) {
       setErrorMsg('A senha precisa ter no mínimo 6 caracteres.');
+      return;
+    }
+
+    if (cleanPassword !== cleanConfirm) {
+      setErrorMsg('A confirmação da senha não confere com a senha digitada. Digite a mesma senha em ambos os campos.');
       return;
     }
 
@@ -199,10 +239,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setErrorMsg(null);
       const res = await api.register({
         role: 'fonoaudiologa',
-        name,
-        email,
-        phone,
-        password,
+        name: cleanName,
+        email: cleanEmail,
+        phone: cleanPhone || undefined,
+        password: cleanPassword,
       });
 
       setSuccessMsg('Cadastro profissional realizado com sucesso!');
@@ -210,7 +250,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         onAuthSuccess(res.user);
         onClose();
         resetForm();
-      }, 500);
+      }, 400);
     } catch (err: any) {
       setErrorMsg(err.message || 'Erro no cadastro da fonoaudióloga.');
     } finally {
@@ -311,9 +351,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         {/* Error / Success Notifications */}
         {errorMsg && (
-          <div className="mb-4 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-800 dark:text-rose-200 flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
-            <span>{errorMsg}</span>
+          <div className="mb-4 p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-800 dark:text-rose-200 flex flex-col gap-2">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+              <span className="font-medium leading-relaxed">{errorMsg}</span>
+            </div>
+            {errorMsg.toLowerCase().includes('já está cadastrado') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('login');
+                  setErrorMsg(null);
+                }}
+                className="self-start text-[11px] font-bold text-teal-700 dark:text-teal-300 underline hover:text-teal-900 dark:hover:text-teal-100 ml-6 cursor-pointer"
+              >
+                Clique aqui para fazer login com este e-mail
+              </button>
+            )}
           </div>
         )}
         {successMsg && (
@@ -579,10 +633,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
             <button
               type="submit"
-              disabled={loading || (password.length > 0 && !passwordCriteria.matchesConfirm)}
-              className="w-full py-3 bg-teal-600 hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600 text-white rounded-xl font-bold text-xs sm:text-sm transition-all shadow-md active:scale-98 disabled:opacity-50"
+              disabled={loading}
+              className="w-full py-3 bg-teal-600 hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600 text-white rounded-xl font-bold text-xs sm:text-sm transition-all shadow-md active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
             >
-              {loading ? 'Cadastrando...' : 'Finalizar Cadastro de Paciente'}
+              {loading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Cadastrando Paciente...</span>
+                </>
+              ) : (
+                <span>Finalizar Cadastro de Paciente</span>
+              )}
             </button>
           </form>
         )}
@@ -608,14 +669,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                Telefone de Contato
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Telefone de Contato
+                </label>
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">(Opcional)</span>
+              </div>
               <div className="relative">
                 <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                 <input
                   type="tel"
-                  required
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="(11) 98765-4321"
@@ -746,10 +809,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
             <button
               type="submit"
-              disabled={loading || (password.length > 0 && !passwordCriteria.matchesConfirm)}
-              className="w-full py-3 bg-teal-600 hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600 text-white rounded-xl font-bold text-xs sm:text-sm transition-all shadow-md active:scale-98 disabled:opacity-50"
+              disabled={loading}
+              className="w-full py-3 bg-teal-600 hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600 text-white rounded-xl font-bold text-xs sm:text-sm transition-all shadow-md active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
             >
-              {loading ? 'Cadastrando...' : 'Concluir Cadastro de Fonoaudióloga'}
+              {loading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Cadastrando Fonoaudióloga...</span>
+                </>
+              ) : (
+                <span>Concluir Cadastro de Fonoaudióloga</span>
+              )}
             </button>
           </form>
         )}

@@ -300,6 +300,22 @@ def init_db():
     );
     """)
 
+    # Tabela de Diário de Sintomas Vocais
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS vocal_symptoms (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        entry_date TEXT NOT NULL,
+        vocal_effort INTEGER DEFAULT 2,
+        fatigue_score INTEGER DEFAULT 2,
+        symptoms_json TEXT DEFAULT '[]',
+        triggers_json TEXT DEFAULT '[]',
+        notes_enc TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users (id)
+    );
+    """)
+
     conn.commit()
 
     # Seed inicial de usuários se vazia
@@ -656,10 +672,17 @@ def register_user(data):
             SELECT id, therapist_id, is_used FROM access_codes WHERE code = ?
             """, (activation_code,)).fetchone()
 
-            if code_row and not code_row["is_used"]:
-                is_activated = 1
-                therapist_id = code_row["therapist_id"]
-                code_used = activation_code
+            if not code_row:
+                conn.close()
+                return {"error": "Código de ativação não encontrado. Verifique com sua fonoaudióloga ou deixe o campo em branco."}, 400
+
+            if code_row["is_used"]:
+                conn.close()
+                return {"error": "Este código de ativação já foi utilizado anteriormente. Solicite um novo código à sua fonoaudióloga ou deixe em branco."}, 400
+
+            is_activated = 1
+            therapist_id = code_row["therapist_id"]
+            code_used = activation_code
 
         cursor.execute("""
         INSERT INTO users (role, name, email, password_hash, salt, is_activated, therapist_id, activation_code_used)
@@ -1426,3 +1449,116 @@ def get_security_audit_sample():
         ]
     }
     return comparison
+
+
+# ==========================================
+# DIÁRIO DE SINTOMAS VOCAIS (LGPD ENCRYPTED)
+# ==========================================
+
+def get_all_symptoms(user_id=None):
+    """Retorna os registros do diário de sintomas com notas descriptografadas."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    query = """
+    SELECT s.id, s.user_id, s.entry_date, s.vocal_effort, s.fatigue_score,
+           s.symptoms_json, s.triggers_json, s.notes_enc, s.created_at,
+           u.name as patient_name
+    FROM vocal_symptoms s
+    LEFT JOIN users u ON u.id = s.user_id
+    """
+    params = []
+    if user_id:
+        query += " WHERE s.user_id = ?"
+        params.append(user_id)
+    query += " ORDER BY s.entry_date DESC, s.id DESC"
+    
+    rows = cursor.execute(query, tuple(params)).fetchall()
+    conn.close()
+    
+    results = []
+    for r in rows:
+        sym_list = []
+        if r["symptoms_json"]:
+            try:
+                sym_list = json.loads(r["symptoms_json"])
+            except Exception:
+                sym_list = []
+        
+        trig_list = []
+        if r["triggers_json"]:
+            try:
+                trig_list = json.loads(r["triggers_json"])
+            except Exception:
+                trig_list = []
+        
+        decrypted_notes = ""
+        if r["notes_enc"]:
+            try:
+                decrypted_notes = decrypt_text(r["notes_enc"])
+            except Exception:
+                decrypted_notes = "[Nota protegida]"
+
+        results.append({
+            "id": r["id"],
+            "user_id": r["user_id"],
+            "patient_name": r["patient_name"] or "Paciente",
+            "entry_date": r["entry_date"],
+            "vocal_effort": r["vocal_effort"],
+            "fatigue_score": r["fatigue_score"],
+            "symptoms": sym_list,
+            "triggers": trig_list,
+            "notes": decrypted_notes,
+            "created_at": r["created_at"]
+        })
+    return results
+
+
+def add_symptom(data, user_id=None):
+    """Insere nova entrada no diário de sintomas com nota protegida por criptografia."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    uid = user_id or data.get("user_id", 2)
+    entry_date = data.get("entry_date") or date.today().isoformat()
+    vocal_effort = int(data.get("vocal_effort", 2))
+    fatigue_score = int(data.get("fatigue_score", 2))
+    symptoms_json = json.dumps(data.get("symptoms", []), ensure_ascii=False)
+    triggers_json = json.dumps(data.get("triggers", []), ensure_ascii=False)
+    notes_enc = encrypt_text(data.get("notes", ""))
+    
+    cursor.execute("""
+    INSERT INTO vocal_symptoms (user_id, entry_date, vocal_effort, fatigue_score, symptoms_json, triggers_json, notes_enc)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (uid, entry_date, vocal_effort, fatigue_score, symptoms_json, triggers_json, notes_enc))
+    
+    inserted_id = cursor.lastrowid
+    user_row = cursor.execute("SELECT name FROM users WHERE id = ?", (uid,)).fetchone()
+    patient_name = user_row["name"] if user_row else "Paciente"
+    conn.commit()
+    conn.close()
+    
+    return {
+        "success": True,
+        "symptom": {
+            "id": inserted_id,
+            "user_id": uid,
+            "patient_name": patient_name,
+            "entry_date": entry_date,
+            "vocal_effort": vocal_effort,
+            "fatigue_score": fatigue_score,
+            "symptoms": data.get("symptoms", []),
+            "triggers": data.get("triggers", []),
+            "notes": data.get("notes", ""),
+            "created_at": datetime.now().isoformat()
+        }
+    }
+
+
+def delete_symptom(symptom_id):
+    """Exclui entrada de sintomas."""
+    conn = get_connection()
+    conn.execute("DELETE FROM vocal_symptoms WHERE id = ?", (symptom_id,))
+    conn.commit()
+    conn.close()
+    return {"success": True, "id": symptom_id}

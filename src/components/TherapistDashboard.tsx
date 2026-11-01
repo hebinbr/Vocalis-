@@ -27,9 +27,14 @@ import {
   CheckCircle2,
   Sliders,
   Flame,
-  Volume2
+  Volume2,
+  CheckCheck,
+  CalendarDays,
+  HeartPulse,
+  Clock,
+  Eye
 } from 'lucide-react';
-import { TherapistDashboardData, AccessCode, User, Exercise } from '../types';
+import { TherapistDashboardData, AccessCode, User, Exercise, VocalSymptomEntry } from '../types';
 import { api } from '../services/api';
 import { TherapistExerciseModal } from './TherapistExerciseModal';
 import { YouTubeVideoModal } from './YouTubeVideoModal';
@@ -37,17 +42,21 @@ import { isValidYouTubeUrl, getYouTubeThumbnailUrl } from '../utils/youtube';
 
 interface TherapistDashboardProps {
   currentUser: User;
+  symptoms?: VocalSymptomEntry[];
+  onRefreshSymptoms?: () => void;
   onSwitchToPatientView?: () => void;
   onRefreshExercises?: () => void;
 }
 
 export const TherapistDashboard: React.FC<TherapistDashboardProps> = ({
   currentUser,
+  symptoms: propSymptoms,
+  onRefreshSymptoms,
   onSwitchToPatientView,
   onRefreshExercises,
 }) => {
   // Main sub-tabs for the dashboard
-  const [activeTab, setActiveTab] = useState<'exercises' | 'patients'>('exercises');
+  const [activeTab, setActiveTab] = useState<'exercises' | 'patients' | 'symptoms'>('exercises');
 
   const [dashboardData, setDashboardData] = useState<TherapistDashboardData | null>(null);
   const [exercisesList, setExercisesList] = useState<Exercise[]>([]);
@@ -75,6 +84,20 @@ export const TherapistDashboard: React.FC<TherapistDashboardProps> = ({
   // Copy state
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
+  // Symptom Diary State
+  const [symptomsList, setSymptomsList] = useState<VocalSymptomEntry[]>([]);
+  const [loadingSymptoms, setLoadingSymptoms] = useState<boolean>(false);
+  const [selectedPatientFilter, setSelectedPatientFilter] = useState<string>('todos');
+  const [symptomSearch, setSymptomSearch] = useState<string>('');
+  const [reviewedMap, setReviewedMap] = useState<Record<number, { reviewedAt: string }>>(() => {
+    try {
+      const stored = localStorage.getItem('vocalis_therapist_reviewed_symptoms');
+      return stored ? JSON.parse(stored) : {};
+    } catch {
+      return {};
+    }
+  });
+
   const loadDashboard = async () => {
     try {
       setLoading(true);
@@ -100,10 +123,55 @@ export const TherapistDashboard: React.FC<TherapistDashboardProps> = ({
     }
   };
 
+  const loadSymptoms = async () => {
+    try {
+      setLoadingSymptoms(true);
+      const list = await api.getSymptoms();
+      setSymptomsList(list);
+    } catch (err: any) {
+      console.warn('Erro ao carregar sintomas no painel da fono:', err);
+    } finally {
+      setLoadingSymptoms(false);
+    }
+  };
+
   useEffect(() => {
     loadDashboard();
     loadExercises();
   }, [currentUser.id]);
+
+  useEffect(() => {
+    if (propSymptoms) {
+      setSymptomsList(propSymptoms);
+    } else {
+      loadSymptoms();
+    }
+  }, [propSymptoms]);
+
+  const handleToggleReview = (symptomId: number) => {
+    const updated = { ...reviewedMap };
+    if (updated[symptomId]) {
+      delete updated[symptomId];
+      setSuccessMsg('Marcação de visto removida.');
+    } else {
+      const now = new Date();
+      updated[symptomId] = {
+        reviewedAt: now.toLocaleDateString('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      };
+      setSuccessMsg('Visto fonoaudiológico registrado com sucesso no diário do paciente!');
+    }
+    setReviewedMap(updated);
+    try {
+      localStorage.setItem('vocalis_therapist_reviewed_symptoms', JSON.stringify(updated));
+    } catch {}
+    setTimeout(() => setSuccessMsg(null), 3500);
+  };
 
   const handleGenerateCode = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -199,6 +267,85 @@ export const TherapistDashboard: React.FC<TherapistDashboardProps> = ({
 
   const exercisesWithVideo = exercisesList.filter((e) => isValidYouTubeUrl(e.video_url)).length;
   const customExercisesCount = exercisesList.filter((e) => e.is_custom).length;
+
+  // Symptom Diary Helpers & Metrics
+  const patientNames = Array.from(new Set(symptomsList.map((s) => s.patient_name || '').filter(Boolean)));
+
+  const filteredSymptoms = symptomsList.filter((entry) => {
+    const pName = (entry.patient_name || '').toLowerCase().trim();
+    const matchesPatient =
+      selectedPatientFilter === 'todos' ||
+      pName === selectedPatientFilter.toLowerCase().trim();
+    const q = symptomSearch.toLowerCase().trim();
+    const matchesSearch =
+      q === '' ||
+      pName.includes(q) ||
+      (entry.entry_date && entry.entry_date.includes(q)) ||
+      (entry.notes && entry.notes.toLowerCase().includes(q)) ||
+      (entry.symptoms && entry.symptoms.some((s) => s.toLowerCase().includes(q))) ||
+      (entry.triggers && entry.triggers.some((t) => t.toLowerCase().includes(q)));
+    return matchesPatient && matchesSearch;
+  });
+
+  const totalSymptomsCount = symptomsList.length;
+  const avgEffort = totalSymptomsCount > 0
+    ? (symptomsList.reduce((acc, curr) => acc + (curr.vocal_effort || 0), 0) / totalSymptomsCount).toFixed(1)
+    : '0.0';
+  const avgFatigue = totalSymptomsCount > 0
+    ? (symptomsList.reduce((acc, curr) => acc + (curr.fatigue_score || 0), 0) / totalSymptomsCount).toFixed(1)
+    : '0.0';
+  const reviewedCount = symptomsList.filter((s) => reviewedMap[s.id]).length;
+
+  const formatDatePtBR = (dateStr: string) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const year = parts[0];
+      const month = parts[1];
+      const day = parts[2];
+      const months = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+      ];
+      const monthName = months[parseInt(month, 10) - 1] || month;
+      return `${parseInt(day, 10)} de ${monthName} de ${year}`;
+    }
+    return dateStr;
+  };
+
+  const getEffortBadge = (val: number) => {
+    switch (val) {
+      case 1:
+        return { label: 'Mínimo (1/5)', color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' };
+      case 2:
+        return { label: 'Leve (2/5)', color: 'bg-teal-100 text-teal-800 dark:bg-teal-950/70 dark:text-teal-300 border-teal-200 dark:border-teal-800' };
+      case 3:
+        return { label: 'Moderado (3/5)', color: 'bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border-amber-200 dark:border-amber-800' };
+      case 4:
+        return { label: 'Intenso (4/5)', color: 'bg-orange-100 text-orange-800 dark:bg-orange-950/70 dark:text-orange-300 border-orange-200 dark:border-orange-800' };
+      case 5:
+        return { label: 'Severo (5/5)', color: 'bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border-rose-200 dark:border-rose-800' };
+      default:
+        return { label: `${val}/5`, color: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700' };
+    }
+  };
+
+  const getFatigueBadge = (val: number) => {
+    switch (val) {
+      case 1:
+        return { label: 'Descansada (1/5)', color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' };
+      case 2:
+        return { label: 'Cansaço Leve (2/5)', color: 'bg-teal-100 text-teal-800 dark:bg-teal-950/70 dark:text-teal-300 border-teal-200 dark:border-teal-800' };
+      case 3:
+        return { label: 'Cansaço Médio (3/5)', color: 'bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border-amber-200 dark:border-amber-800' };
+      case 4:
+        return { label: 'Cansaço Alto (4/5)', color: 'bg-orange-100 text-orange-800 dark:bg-orange-950/70 dark:text-orange-300 border-orange-200 dark:border-orange-800' };
+      case 5:
+        return { label: 'Exaustão (5/5)', color: 'bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border-rose-200 dark:border-rose-800' };
+      default:
+        return { label: `${val}/5`, color: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700' };
+    }
+  };
 
   return (
     <div className="space-y-8 pb-16">
@@ -300,6 +447,26 @@ export const TherapistDashboard: React.FC<TherapistDashboardProps> = ({
                 : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
             }`}>
               {dashboardData?.active_patients || 0}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('symptoms')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+              activeTab === 'symptoms'
+                ? 'bg-teal-600 text-white shadow-md shadow-teal-600/20'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            <span>Diário de Sintomas dos Pacientes</span>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
+              activeTab === 'symptoms'
+                ? 'bg-teal-700/80 text-white'
+                : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+            }`}>
+              {symptomsList.length}
             </span>
           </button>
         </div>
@@ -895,6 +1062,23 @@ export const TherapistDashboard: React.FC<TherapistDashboardProps> = ({
                         "{pat.clinical_notes}"
                       </div>
                     </div>
+
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                        {symptomsList.filter((s) => (s.patient_name || '').toLowerCase().trim() === pat.name.toLowerCase().trim()).length} relatos no diário
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedPatientFilter(pat.name);
+                          setActiveTab('symptoms');
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/50 hover:bg-teal-100 dark:hover:bg-teal-900/50 border border-teal-200/80 dark:border-teal-800 text-teal-800 dark:text-teal-200 text-xs font-bold transition-all shadow-2xs"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>Ver Diário de Sintomas</span>
+                      </button>
+                    </div>
                   </div>
                 ))
               ) : (
@@ -903,6 +1087,378 @@ export const TherapistDashboard: React.FC<TherapistDashboardProps> = ({
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          TAB 3: DIÁRIO DE SINTOMAS DOS PACIENTES (SOLICITAÇÃO PRINCIPAL DA FONOAUDIÓLOGA)
+      ========================================================================= */}
+      {activeTab === 'symptoms' && (
+        <div className="space-y-6">
+          {/* Symptoms Header & Metrics Summary */}
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-6 sm:p-8 shadow-sm transition-colors">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-slate-100 dark:border-slate-800">
+              <div className="space-y-1.5 max-w-2xl">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 px-2.5 py-0.5 rounded-full">
+                    Acompanhamento Terapêutico Contínuo
+                  </span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                    <ShieldCheck className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                    LGPD Art. 11 Criptografado
+                  </span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 font-display">
+                  Diário de Sintomas Vocais & Notas dos Pacientes
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Consulte os relatos diários registrados pelos seus pacientes ao final do dia. Analise a evolução do esforço fonatório, fadiga vocal, queixas e gatilhos para ajustar o plano terapêutico com segurança.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    loadSymptoms();
+                    if (onRefreshSymptoms) onRefreshSymptoms();
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all"
+                  title="Recarregar registros do banco SQLite"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingSymptoms ? 'animate-spin' : ''}`} />
+                  <span>Sincronizar</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 4 Clinical KPI Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Total de Registros</span>
+                  <FileText className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                </div>
+                <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                  {symptomsList.length}
+                </div>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Notas ao final do dia
+                </span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Esforço Vocal Médio</span>
+                  <Activity className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                </div>
+                <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+                  {avgEffort} <span className="text-xs text-slate-500 dark:text-slate-400 font-normal">/ 5.0</span>
+                </div>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  {Number(avgEffort) <= 2.5 ? 'Leve / Confortável' : Number(avgEffort) <= 3.5 ? 'Moderado' : 'Atenção Fonoaudiológica'}
+                </span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Fadiga Vocal Média</span>
+                  <HeartPulse className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                  {avgFatigue} <span className="text-xs text-slate-500 dark:text-slate-400 font-normal">/ 5.0</span>
+                </div>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Percepção de cansaço
+                </span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Vistos Fonoaudiológicos</span>
+                  <CheckCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                  {reviewedCount} <span className="text-xs text-slate-500 dark:text-slate-400 font-normal">/ {symptomsList.length}</span>
+                </div>
+                <span className="text-[11px] text-emerald-700 dark:text-emerald-400">
+                  {symptomsList.length > 0 ? `${Math.round((reviewedCount / symptomsList.length) * 100)}% analisados` : '0%'}
+                </span>
+              </div>
+            </div>
+
+            {/* Filter & Search Bar */}
+            <div className="flex flex-col sm:flex-row gap-3 mt-6 pt-6 border-t border-slate-100 dark:border-slate-800">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={symptomSearch}
+                  onChange={(e) => setSymptomSearch(e.target.value)}
+                  placeholder="Buscar por queixa vocal, gatilho, data ou anotação confidencial..."
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs sm:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400"
+                />
+                {symptomSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setSymptomSearch('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                  >
+                    Limpar
+                  </button>
+                )}
+              </div>
+
+              {/* Patient Selector Filter */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 shrink-0">
+                  Paciente:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedPatientFilter('todos')}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                    selectedPatientFilter === 'todos'
+                      ? 'bg-teal-600 text-white shadow-xs'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  Todos ({symptomsList.length})
+                </button>
+                {patientNames.map((name: string) => {
+                  const count = symptomsList.filter((s) => (s.patient_name || '') === name).length;
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => setSelectedPatientFilter(name)}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                        selectedPatientFilter === name
+                          ? 'bg-teal-600 text-white shadow-xs'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      {name} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* List of Symptoms Entries */}
+          <div className="space-y-4">
+            {filteredSymptoms.length > 0 ? (
+              filteredSymptoms.map((entry) => {
+                const effortInfo = getEffortBadge(entry.vocal_effort);
+                const fatigueInfo = getFatigueBadge(entry.fatigue_score);
+                const isReviewed = Boolean(reviewedMap[entry.id]);
+                const reviewMeta = reviewedMap[entry.id];
+
+                return (
+                  <div
+                    key={entry.id}
+                    className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-6 sm:p-7 shadow-sm transition-all hover:border-teal-300 dark:hover:border-teal-700 space-y-4"
+                  >
+                    {/* Entry Top Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-teal-600/10 dark:bg-teal-400/10 text-teal-700 dark:text-teal-300 font-bold flex items-center justify-center text-sm shrink-0 border border-teal-200/50 dark:border-teal-800/50">
+                          {entry.patient_name ? entry.patient_name.charAt(0) : 'P'}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-slate-900 dark:text-slate-100 text-base">
+                              {entry.patient_name || 'Paciente'}
+                            </h4>
+                            <span className="text-[10px] px-2 py-0.5 rounded-md font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                              ID Paciente #{entry.user_id}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            <CalendarDays className="w-3.5 h-3.5" />
+                            <span>{formatDatePtBR(entry.entry_date)}</span>
+                            <span className="text-slate-300 dark:text-slate-700">•</span>
+                            <span>Relato noturno</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Review Status & Action Button */}
+                      <div className="flex items-center gap-2">
+                        {isReviewed ? (
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-bold">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                              <span>Visto da Fonoaudióloga ({reviewMeta?.reviewedAt})</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleReview(entry.id)}
+                              className="text-xs text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors px-2 py-1"
+                              title="Remover visto"
+                            >
+                              Desmarcar
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleReview(entry.id)}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition-all shadow-sm shadow-teal-600/20"
+                          >
+                            <CheckCheck className="w-4 h-4" />
+                            <span>Registrar Visto da Fonoaudióloga</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Metrics Gauges Row */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                            <Activity className="w-3.5 h-3.5 text-indigo-500" />
+                            Esforço Vocal Percebido
+                          </span>
+                          <span className={`text-xs font-bold px-2.5 py-0.5 rounded-lg border ${effortInfo.color}`}>
+                            {effortInfo.label}
+                          </span>
+                        </div>
+                        {/* 5-step visual bar */}
+                        <div className="grid grid-cols-5 gap-1 pt-1">
+                          {[1, 2, 3, 4, 5].map((lvl) => (
+                            <div
+                              key={lvl}
+                              className={`h-2 rounded-full transition-all ${
+                                lvl <= entry.vocal_effort
+                                  ? lvl <= 2
+                                    ? 'bg-teal-500'
+                                    : lvl === 3
+                                    ? 'bg-amber-500'
+                                    : 'bg-rose-500'
+                                  : 'bg-slate-200 dark:bg-slate-700'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                            <HeartPulse className="w-3.5 h-3.5 text-amber-500" />
+                            Fadiga Laríngea ao Final do Dia
+                          </span>
+                          <span className={`text-xs font-bold px-2.5 py-0.5 rounded-lg border ${fatigueInfo.color}`}>
+                            {fatigueInfo.label}
+                          </span>
+                        </div>
+                        {/* 5-step visual bar */}
+                        <div className="grid grid-cols-5 gap-1 pt-1">
+                          {[1, 2, 3, 4, 5].map((lvl) => (
+                            <div
+                              key={lvl}
+                              className={`h-2 rounded-full transition-all ${
+                                lvl <= entry.fatigue_score
+                                  ? lvl <= 2
+                                    ? 'bg-teal-500'
+                                    : lvl === 3
+                                    ? 'bg-amber-500'
+                                    : 'bg-rose-500'
+                                  : 'bg-slate-200 dark:bg-slate-700'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Symptoms & Triggers Tags */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                      {entry.symptoms && entry.symptoms.length > 0 && (
+                        <div className="space-y-1.5">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                            Sintomas Relatados
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {entry.symptoms.map((sym, idx) => (
+                              <span
+                                key={idx}
+                                className="text-xs px-2.5 py-1 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 border border-amber-200/70 dark:border-amber-800 font-medium"
+                              >
+                                {sym}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {entry.triggers && entry.triggers.length > 0 && (
+                        <div className="space-y-1.5">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                            Fatores Desencadeantes / Gatilhos
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {entry.triggers.map((trig, idx) => (
+                              <span
+                                key={idx}
+                                className="text-xs px-2.5 py-1 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 border border-indigo-200/70 dark:border-indigo-800 font-medium"
+                              >
+                                {trig}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Patient Confidential Observation Note (LGPD protected) */}
+                    {entry.notes ? (
+                      <div className="p-4 rounded-2xl bg-teal-50/50 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900/40 space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-teal-800 dark:text-teal-300">
+                          <ShieldCheck className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                          <span>Observação Clínica Confidencial do Paciente</span>
+                        </div>
+                        <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 italic leading-relaxed pl-1">
+                          "{entry.notes}"
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400 dark:text-slate-500 italic pl-1">
+                        Nenhuma observação textual registrada para este dia.
+                      </p>
+                    )}
+                  </div>
+                );
+              })
+            ) : (
+              <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-12 text-center space-y-3">
+                <FileText className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto" />
+                <h4 className="text-base font-bold text-slate-800 dark:text-slate-200">
+                  Nenhum relato encontrado com os filtros atuais
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+                  {symptomSearch || selectedPatientFilter !== 'todos'
+                    ? 'Tente limpar a pesquisa ou selecionar outro paciente para visualizar os diários.'
+                    : 'Assim que os pacientes responderem à pergunta sobre como sua voz se sentiu ao final do dia, as notas aparecerão aqui automaticamente.'}
+                </p>
+                {(symptomSearch || selectedPatientFilter !== 'todos') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSymptomSearch('');
+                      setSelectedPatientFilter('todos');
+                    }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-600 text-white text-xs font-bold hover:bg-teal-700 transition-colors"
+                  >
+                    Restaurar Todos os Pacientes
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
