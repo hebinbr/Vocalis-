@@ -18,21 +18,6 @@
     <script>
       (function() {
         try {
-          var _f = window.fetch;
-          Object.defineProperty(window, 'fetch', {
-            get: function() { return _f; },
-            set: function(val) { _f = val; },
-            configurable: true,
-            enumerable: true
-          });
-        } catch (e) {
-          /* ignore if environment prevents redefinition */
-        }
-      })();
-    </script>
-    <script>
-      (function() {
-        try {
           var saved = localStorage.getItem('vocalis_theme');
           if (saved === 'dark' || (!saved && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
             document.documentElement.classList.add('dark');
@@ -41,16 +26,21 @@
           }
         } catch (e) {}
 
-        // Invalida caches obsoletos no navegador do usuário
+        // Limpa Service Workers legados que podem causar tela branca
         try {
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(regs) {
+              for (var i = 0; i < regs.length; i++) {
+                regs[i].unregister();
+              }
+            }).catch(function() {});
+          }
           if ('caches' in window) {
-            caches.keys().then(function(keys) {
-              keys.forEach(function(key) {
-                if (key !== 'vocalis-cache-v11') {
-                  caches.delete(key);
-                }
-              });
-            });
+            caches.keys().then(function(names) {
+              for (var j = 0; j < names.length; j++) {
+                caches.delete(names[j]);
+              }
+            }).catch(function() {});
           }
         } catch (e) {}
       })();

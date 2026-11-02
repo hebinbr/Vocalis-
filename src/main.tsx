@@ -82,16 +82,11 @@ if (rootElement) {
   );
 }
 
-// Registro seguro do Service Worker (sem loops de reload)
+// Desregistra Service Workers residuais para garantir carregamento instantâneo
 if ('serviceWorker' in navigator && typeof window !== 'undefined') {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker
-      .register('/service-worker.js', { scope: '/' })
-      .then((registration) => {
-        console.log('[Vocalis PWA] Service Worker registrado com sucesso:', registration.scope);
-      })
-      .catch((error) => {
-        console.warn('[Vocalis PWA] Registro do Service Worker dispensado:', error);
-      });
-  });
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    for (const reg of registrations) {
+      reg.unregister();
+    }
+  }).catch(() => {});
 }

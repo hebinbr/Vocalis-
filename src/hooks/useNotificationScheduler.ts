@@ -51,33 +51,6 @@ export function useNotificationScheduler(
       setPermission('unsupported');
     }
 
-    // Registra Service Worker para exibição em segundo plano garantida
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker
-        .register('/service-worker.js', { scope: '/' })
-        .then((reg) => {
-          swRegRef.current = reg;
-          console.log('[Vocalis PWA] Service Worker registrado com sucesso:', reg.scope);
-        })
-        .catch((err) => {
-          console.warn('[Vocalis PWA] Falha ao registrar Service Worker:', err);
-        });
-
-      // Escuta cliques vindos do Service Worker
-      const handleSwMessage = (event: MessageEvent) => {
-        if (event.data?.type === 'NOTIFICATION_CLICKED') {
-          console.log('[Vocalis PWA] Notificação clicada pelo usuário:', event.data);
-          if (event.data.data && onOpenExercise) {
-            onOpenExercise(event.data.data as Reminder);
-          }
-        }
-      };
-
-      navigator.serviceWorker.addEventListener('message', handleSwMessage);
-      return () => {
-        navigator.serviceWorker.removeEventListener('message', handleSwMessage);
-      };
-    }
   }, [onOpenExercise]);
 
   // Inicializa o Web Worker de segundo plano
