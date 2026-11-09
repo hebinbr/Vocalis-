@@ -9,7 +9,8 @@ import {
   User,
   TherapistDashboardData,
   AccessCode,
-  VocalSymptomEntry
+  VocalSymptomEntry,
+  PatientReportData
 } from '../types';
 
 /**
@@ -236,5 +237,12 @@ export const api = {
     return fetchJsonWithRetry(`/api/symptoms/${id}`, {
       method: 'DELETE'
     });
+  },
+
+  // Exportação e Relatório Clínico Completo (SQLite)
+  async getPatientReportData(userId?: number): Promise<PatientReportData> {
+    const url = userId ? `/api/reports/patient?user_id=${userId}` : '/api/reports/patient';
+    return fetchJsonWithRetry(url);
   }
 };
+

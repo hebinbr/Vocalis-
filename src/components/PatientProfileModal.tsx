@@ -11,9 +11,11 @@ import {
   Flame,
   Award,
   Clock,
-  Lock
+  Lock,
+  FileDown
 } from 'lucide-react';
 import { Patient, ProgressStats, ExerciseLog } from '../types';
+import { generatePatientClinicalPdf } from '../utils/pdfExport';
 
 interface PatientProfileModalProps {
   patient: Patient;
@@ -87,6 +89,25 @@ Relatório gerado em ${new Date().toLocaleDateString('pt-BR')} via Vocalis (Dado
     navigator.clipboard.writeText(reportText);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const [exportingPdf, setExportingPdf] = useState<boolean>(false);
+
+  const handleExportPdf = async () => {
+    setExportingPdf(true);
+    try {
+      await generatePatientClinicalPdf({
+        patient,
+        stats,
+        logs,
+        symptoms: []
+      });
+    } catch (err) {
+      console.error('Erro ao gerar relatório clínico em PDF:', err);
+      alert('Não foi possível gerar o arquivo PDF.');
+    } finally {
+      setExportingPdf(false);
+    }
   };
 
   const handlePrint = () => {
@@ -266,7 +287,16 @@ Relatório gerado em ${new Date().toLocaleDateString('pt-BR')} via Vocalis (Dado
                       Emitido em {new Date().toLocaleDateString('pt-BR')}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={handleExportPdf}
+                      disabled={exportingPdf}
+                      className="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white flex items-center gap-1.5 font-bold text-xs shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+                      title="Download do Relatório Completo em PDF para a consulta presencial"
+                    >
+                      <FileDown className={`w-3.5 h-3.5 ${exportingPdf ? 'animate-bounce' : ''}`} />
+                      <span>{exportingPdf ? 'Gerando...' : 'Baixar PDF Oficial'}</span>
+                    </button>
                     <button
                       onClick={handleCopyReport}
                       className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-200 transition-colors"

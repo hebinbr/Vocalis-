@@ -170,6 +170,13 @@ function handleNativeSqliteRoute(req: Request, res: Response): boolean {
         res.json(sqliteService.getSymptoms(userId));
         return true;
       }
+      if (urlPath === '/api/reports/patient' || urlPath.startsWith('/api/reports/patient')) {
+        const parts = urlPath.split('/');
+        const idFromPath = parts.length > 3 ? Number(parts[3]) : undefined;
+        const userId = idFromPath || (req.query.user_id ? Number(req.query.user_id) : undefined);
+        res.json(sqliteService.getPatientReportData(userId));
+        return true;
+      }
     }
 
     if (method === 'POST') {

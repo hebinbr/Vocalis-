@@ -19,12 +19,15 @@ import {
   Target,
   ArrowUpRight,
   Shield,
-  Check
+  Check,
+  FileDown,
+  FileText
 } from 'lucide-react';
 import { ProgressStats, ExerciseLog, Patient, User, VocalSymptomEntry } from '../types';
 import { WeeklyAdherenceChart } from './WeeklyAdherenceChart';
 import { SymptomDiarySection } from './SymptomDiarySection';
 import { api } from '../services/api';
+import { generatePatientClinicalPdf } from '../utils/pdfExport';
 
 interface VisualProgressDashboardProps {
   stats: ProgressStats | null;
@@ -52,6 +55,31 @@ export const VisualProgressDashboard: React.FC<VisualProgressDashboardProps> = (
   const [selectedBadgeCategory, setSelectedBadgeCategory] = useState<string>('Todos');
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [localSymptoms, setLocalSymptoms] = useState<VocalSymptomEntry[]>([]);
+  const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
+  const [exportSuccess, setExportSuccess] = useState<boolean>(false);
+
+  const handleExportPdf = async () => {
+    setIsExportingPdf(true);
+    try {
+      // Busca dados sincronizados diretamente da API / SQLite
+      const freshData = await api.getPatientReportData(currentUser?.id).catch(() => null);
+
+      await generatePatientClinicalPdf({
+        patient: freshData?.patient || patient,
+        logs: (freshData?.logs && freshData.logs.length > 0) ? freshData.logs : logs,
+        stats: freshData?.stats || stats,
+        symptoms: (freshData?.symptoms && freshData.symptoms.length > 0) ? freshData.symptoms : localSymptoms
+      });
+
+      setExportSuccess(true);
+      setTimeout(() => setExportSuccess(false), 4000);
+    } catch (err) {
+      console.error('Falha ao exportar relatório PDF:', err);
+      alert('Não foi possível gerar o arquivo PDF. Por favor, tente novamente.');
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
 
   React.useEffect(() => {
     if (propSymptoms) {
@@ -164,7 +192,7 @@ export const VisualProgressDashboard: React.FC<VisualProgressDashboardProps> = (
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 text-xs font-semibold">
                 <Flame className="w-4 h-4 text-amber-400 fill-amber-400" />
                 <span className="tabular-nums font-bold text-white text-sm">{stats.streak_days}</span>
@@ -178,6 +206,17 @@ export const VisualProgressDashboard: React.FC<VisualProgressDashboardProps> = (
                 </span>
                 <span className="text-slate-300">distintivos</span>
               </div>
+
+              <button
+                type="button"
+                onClick={handleExportPdf}
+                disabled={isExportingPdf}
+                className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-gradient-to-r from-teal-500 to-emerald-400 hover:from-teal-400 hover:to-emerald-300 text-slate-950 font-bold text-xs shadow-lg transition-all hover:scale-102 active:scale-98 disabled:opacity-50 cursor-pointer"
+                title="Exportar histórico de exercícios e progresso em PDF para consultas presenciais"
+              >
+                <FileDown className={`w-4 h-4 stroke-[2.5] ${isExportingPdf ? 'animate-bounce' : ''}`} />
+                <span>{isExportingPdf ? 'Gerando PDF...' : 'Exportar PDF (Consulta)'}</span>
+              </button>
             </div>
           </div>
 
@@ -208,6 +247,61 @@ export const VisualProgressDashboard: React.FC<VisualProgressDashboardProps> = (
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Toast de Sucesso no Download */}
+      {exportSuccess && (
+        <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 flex items-center justify-between shadow-sm animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <div>
+              <span className="font-bold text-sm block">Relatório Clínico PDF Gerado com Sucesso!</span>
+              <span className="text-xs text-emerald-700 dark:text-emerald-300">
+                O arquivo oficial com seus exercícios, gráficos de adesão e diário de sintomas foi salvo em seus downloads para sua consulta presencial.
+              </span>
+            </div>
+          </div>
+          <span className="text-[11px] font-bold uppercase tracking-wider bg-emerald-200 dark:bg-emerald-900 px-2.5 py-1 rounded-lg">
+            Download Concluído
+          </span>
+        </div>
+      )}
+
+      {/* Card de Exportação Clínica Oficial para Consulta Presencial */}
+      <div className="bg-gradient-to-br from-teal-50 via-white to-emerald-50 dark:from-slate-900 dark:via-slate-900/90 dark:to-teal-950/40 rounded-3xl p-6 sm:p-7 border border-teal-200/80 dark:border-teal-800/80 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-5 transition-colors">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-teal-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-teal-600/20">
+            <FileText className="w-6 h-6" />
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-300">
+                Prontuário Presencial
+              </span>
+              <span className="text-slate-300 dark:text-slate-600">·</span>
+              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                <Lock className="w-3 h-3" />
+                <span>Base SQLite Autenticada</span>
+              </span>
+            </div>
+            <h3 className="text-lg font-extrabold text-slate-900 dark:text-slate-100 font-display">
+              Relatório de Evolução Vocal para Consulta Fonoaudiológica
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 max-w-2xl leading-relaxed">
+              Leve para sua fonoaudióloga o histórico consolidado de sessões, precisão acústica de afinação (F0), frequência semanal e seu diário de sintomas diários gravados com segurança no banco SQLite.
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleExportPdf}
+          disabled={isExportingPdf}
+          className="w-full md:w-auto px-6 py-3.5 rounded-2xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-teal-600/20 hover:shadow-lg transition-all flex items-center justify-center gap-2.5 shrink-0 hover:scale-102 active:scale-98 disabled:opacity-50 cursor-pointer"
+        >
+          <FileDown className={`w-4 h-4 stroke-[2.5] ${isExportingPdf ? 'animate-bounce' : ''}`} />
+          <span>{isExportingPdf ? 'Processando Dados SQLite...' : 'Baixar Relatório em PDF (.pdf)'}</span>
+        </button>
       </div>
 
       {/* Roadmap dos 5 Níveis Vocais */}

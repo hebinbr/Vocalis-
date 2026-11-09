@@ -22,7 +22,7 @@ import {
   AlertCircle,
   Play
 } from 'lucide-react';
-import { Exercise, User } from '../types';
+import { Exercise, User, ProgressStats, ExerciseLog, Patient } from '../types';
 import { DailyVocalTip } from './DailyVocalTip';
 import { ActivationCodePrompt } from './ActivationCodePrompt';
 import { YouTubeVideoModal } from './YouTubeVideoModal';
@@ -33,6 +33,9 @@ interface ExerciseCatalogProps {
   patientLevel: number;
   isActivated?: boolean;
   currentUser?: User | null;
+  stats?: ProgressStats | null;
+  logs?: ExerciseLog[];
+  patient?: Patient | null;
   onStartExercise: (exercise: Exercise) => void;
   onOpenVault: () => void;
   onActivateUser?: (user: User) => void;
@@ -56,6 +59,9 @@ export const ExerciseCatalog: React.FC<ExerciseCatalogProps> = ({
   patientLevel,
   isActivated = true,
   currentUser,
+  stats = null,
+  logs = [],
+  patient = null,
   onStartExercise,
   onOpenVault,
   onActivateUser,
@@ -106,8 +112,13 @@ export const ExerciseCatalog: React.FC<ExerciseCatalogProps> = ({
 
   return (
     <div className="space-y-8 pb-12">
-      {/* 1. Componente Dica do Dia Baseada em Evidências Científicas */}
-      <DailyVocalTip />
+      {/* 1. Componente Dica do Dia Inteligente (Clima, Frequência de Treino & Hidratação) */}
+      <DailyVocalTip
+        stats={stats}
+        logs={logs}
+        patient={patient}
+        currentUser={currentUser}
+      />
 
       {/* 2. Banner de Ativação caso o paciente ainda não tenha inserido o código */}
       {!isActivated && currentUser && (

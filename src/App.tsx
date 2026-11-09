@@ -81,10 +81,14 @@ export default function App() {
 
   // Save current user to localStorage whenever changed
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem('vocalis_current_user', JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem('vocalis_current_user');
+    try {
+      if (currentUser) {
+        localStorage.setItem('vocalis_current_user', JSON.stringify(currentUser));
+      } else {
+        localStorage.removeItem('vocalis_current_user');
+      }
+    } catch {
+      // Ignore storage access restrictions in sandboxed iframes
     }
   }, [currentUser]);
 
@@ -348,6 +352,9 @@ export default function App() {
                     : (currentUser?.is_activated ?? false)
                 }
                 currentUser={currentUser}
+                stats={stats}
+                logs={logs}
+                patient={patient}
                 onStartExercise={(ex) => setActiveExercise(ex)}
                 onOpenVault={() => setShowVaultModal(true)}
                 onActivateUser={(updated) => {

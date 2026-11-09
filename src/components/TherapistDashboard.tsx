@@ -32,13 +32,15 @@ import {
   CalendarDays,
   HeartPulse,
   Clock,
-  Eye
+  Eye,
+  FileDown
 } from 'lucide-react';
 import { TherapistDashboardData, AccessCode, User, Exercise, VocalSymptomEntry } from '../types';
 import { api } from '../services/api';
 import { TherapistExerciseModal } from './TherapistExerciseModal';
 import { YouTubeVideoModal } from './YouTubeVideoModal';
 import { isValidYouTubeUrl, getYouTubeThumbnailUrl } from '../utils/youtube';
+import { generatePatientClinicalPdf } from '../utils/pdfExport';
 
 interface TherapistDashboardProps {
   currentUser: User;
@@ -97,6 +99,21 @@ export const TherapistDashboard: React.FC<TherapistDashboardProps> = ({
       return {};
     }
   });
+
+  const [exportingPatientId, setExportingPatientId] = useState<number | null>(null);
+
+  const handleExportPatientReport = async (patientId: number, patientName: string) => {
+    setExportingPatientId(patientId);
+    try {
+      const reportData = await api.getPatientReportData(patientId);
+      await generatePatientClinicalPdf(reportData);
+    } catch (err) {
+      console.error('Falha ao exportar relatório em PDF:', err);
+      alert(`Não foi possível gerar o PDF de ${patientName}.`);
+    } finally {
+      setExportingPatientId(null);
+    }
+  };
 
   const loadDashboard = async () => {
     try {
@@ -1063,21 +1080,33 @@ export const TherapistDashboard: React.FC<TherapistDashboardProps> = ({
                       </div>
                     </div>
 
-                    <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between flex-wrap gap-2">
                       <span className="text-[11px] text-slate-500 dark:text-slate-400">
                         {symptomsList.filter((s) => (s.patient_name || '').toLowerCase().trim() === pat.name.toLowerCase().trim()).length} relatos no diário
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedPatientFilter(pat.name);
-                          setActiveTab('symptoms');
-                        }}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/50 hover:bg-teal-100 dark:hover:bg-teal-900/50 border border-teal-200/80 dark:border-teal-800 text-teal-800 dark:text-teal-200 text-xs font-bold transition-all shadow-2xs"
-                      >
-                        <FileText className="w-3.5 h-3.5" />
-                        <span>Ver Diário de Sintomas</span>
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleExportPatientReport(pat.id, pat.name)}
+                          disabled={exportingPatientId === pat.id}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 border border-indigo-200/80 dark:border-indigo-800 text-indigo-800 dark:text-indigo-200 text-xs font-bold transition-all shadow-2xs disabled:opacity-50 cursor-pointer"
+                          title="Exportar relatório clínico completo em PDF para a consulta presencial"
+                        >
+                          <FileDown className={`w-3.5 h-3.5 ${exportingPatientId === pat.id ? 'animate-bounce' : ''}`} />
+                          <span>{exportingPatientId === pat.id ? 'Gerando...' : 'Exportar PDF'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedPatientFilter(pat.name);
+                            setActiveTab('symptoms');
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/50 hover:bg-teal-100 dark:hover:bg-teal-900/50 border border-teal-200/80 dark:border-teal-800 text-teal-800 dark:text-teal-200 text-xs font-bold transition-all shadow-2xs"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>Ver Diário</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))
@@ -1118,6 +1147,32 @@ export const TherapistDashboard: React.FC<TherapistDashboardProps> = ({
               </div>
 
               <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const targetPatient = dashboardData?.patients?.find(
+                      (p) => p.name.toLowerCase() === selectedPatientFilter.toLowerCase()
+                    ) || dashboardData?.patients?.[0];
+                    if (targetPatient) {
+                      handleExportPatientReport(targetPatient.id, targetPatient.name);
+                    } else {
+                      handleExportPatientReport(2, 'Camila Rossi');
+                    }
+                  }}
+                  disabled={exportingPatientId !== null}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                  title="Exportar relatório clínico completo em PDF com histórico e sintomas do SQLite"
+                >
+                  <FileDown className={`w-3.5 h-3.5 ${exportingPatientId !== null ? 'animate-bounce' : ''}`} />
+                  <span>
+                    {exportingPatientId !== null
+                      ? 'Gerando PDF...'
+                      : selectedPatientFilter !== 'todos'
+                        ? `Exportar PDF (${selectedPatientFilter})`
+                        : 'Exportar Relatório PDF'}
+                  </span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => {

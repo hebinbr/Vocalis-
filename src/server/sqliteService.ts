@@ -1716,5 +1716,22 @@ export const sqliteService = {
     const db = getDatabase();
     db.prepare('DELETE FROM vocal_symptoms WHERE id = ?').run(id);
     return { success: true, id };
+  },
+
+  getPatientReportData(userId?: number) {
+    const patient = this.getPatient(userId);
+    const logs = this.getLogs(userId);
+    const stats = this.getProgressStats(userId);
+    const symptoms = this.getSymptoms(userId);
+    const reminders = this.getReminders(userId);
+    return {
+      patient,
+      logs,
+      stats,
+      symptoms,
+      reminders,
+      generated_at: new Date().toISOString()
+    };
   }
 };
+

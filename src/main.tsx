@@ -83,10 +83,15 @@ if (rootElement) {
 }
 
 // Desregistra Service Workers residuais para garantir carregamento instantâneo
-if ('serviceWorker' in navigator && typeof window !== 'undefined') {
-  navigator.serviceWorker.getRegistrations().then((registrations) => {
-    for (const reg of registrations) {
-      reg.unregister();
-    }
-  }).catch(() => {});
+try {
+  if (typeof window !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker?.getRegistrations) {
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      for (const reg of registrations) {
+        reg.unregister().catch(() => {});
+      }
+    }).catch(() => {});
+  }
+} catch {
+  // Ignora restrições de permissões em sandbox iframes
 }
+

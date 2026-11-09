@@ -42,6 +42,17 @@ export interface TherapistDashboardData {
   active_patients: number;
 }
 
+export interface WeatherData {
+  city: string;
+  temperature: number;
+  relativeHumidity: number;
+  condition: 'dry' | 'cold' | 'hot' | 'humid' | 'moderate';
+  conditionLabel: string;
+  apparentTemperature?: number;
+  isAutoDetected?: boolean;
+  updatedAt?: string;
+}
+
 export interface VocalTip {
   id: number;
   title: string;
@@ -51,7 +62,11 @@ export interface VocalTip {
   scientificSource: string;
   benefitTag: string;
   iconName: string;
+  climateTrigger?: 'dry' | 'cold' | 'hot' | 'humid' | 'moderate' | 'general';
+  frequencyTrigger?: 'low_frequency' | 'high_streak' | 'fatigued' | 'moderate' | 'returning' | 'general';
+  hydrationGoalBonusMl?: number;
 }
+
 
 export interface Patient {
   id: number;
@@ -223,3 +238,13 @@ export interface VocalSymptomEntry {
   notes: string;
   created_at: string;
 }
+
+export interface PatientReportData {
+  patient: Patient | null;
+  logs: ExerciseLog[];
+  stats: ProgressStats | null;
+  symptoms: VocalSymptomEntry[];
+  reminders?: Reminder[];
+  generated_at: string;
+}
+

@@ -232,6 +232,20 @@ class VocalisAPIHandler(BaseHTTPRequestHandler):
             self._send_json(stats)
             return
 
+        if path == "/api/reports/patient" or path.startswith("/api/reports/patient"):
+            patient = db.get_patient(user_id) or {}
+            logs = db.get_all_logs(user_id)
+            symptoms = db.get_all_symptoms(user_id)
+            reminders = db.get_reminders(user_id)
+            self._send_json({
+                "patient": patient,
+                "logs": logs,
+                "symptoms": symptoms,
+                "reminders": reminders,
+                "generated_at": datetime.now().isoformat()
+            })
+            return
+
         self._send_json({"error": "Endpoint não encontrado"}, status=404)
 
     def do_POST(self):
