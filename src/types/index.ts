@@ -124,6 +124,16 @@ export interface ExerciseLog {
   date_iso: string;
   xp_earned?: number;
   created_at: string;
+  sync_status?: 'synced' | 'pending';
+  local_id?: number;
+}
+
+export interface OfflineSyncStatus {
+  isOnline: boolean;
+  pendingCount: number;
+  isSyncing: boolean;
+  lastSyncTime: string | null;
+  hasIndexedDb: boolean;
 }
 
 export interface Reminder {

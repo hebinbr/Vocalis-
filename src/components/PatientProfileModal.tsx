@@ -54,7 +54,6 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
         clinical_notes: clinicalNotes,
         daily_goal_minutes: dailyGoalMinutes,
       });
-      alert('Perfil clínico salvo e criptografado com sucesso!');
       onClose();
     } catch (err) {
       console.error(err);
@@ -104,7 +103,6 @@ Relatório gerado em ${new Date().toLocaleDateString('pt-BR')} via Vocalis (Dado
       });
     } catch (err) {
       console.error('Erro ao gerar relatório clínico em PDF:', err);
-      alert('Não foi possível gerar o arquivo PDF.');
     } finally {
       setExportingPdf(false);
     }

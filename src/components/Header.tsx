@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Patient, User } from '../types';
 import { useTheme } from '../context/ThemeContext';
+import { OfflineSyncIndicator } from './OfflineSyncIndicator';
 
 interface HeaderProps {
   currentTab: 'exercises' | 'progress' | 'reminders' | 'vault' | 'therapist';
@@ -25,6 +26,7 @@ interface HeaderProps {
   onStartQuickExercise: () => void;
   onOpenAuth: () => void;
   onLogout: () => void;
+  onManualSyncTriggered?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -36,6 +38,7 @@ export const Header: React.FC<HeaderProps> = ({
   onStartQuickExercise,
   onOpenAuth,
   onLogout,
+  onManualSyncTriggered,
 }) => {
   const isTherapist = currentUser?.role === 'fonoaudiologa';
   const { theme, toggleTheme, isDark } = useTheme();
@@ -142,6 +145,9 @@ export const Header: React.FC<HeaderProps> = ({
                 <Moon className="w-4 h-4 text-slate-600 dark:text-slate-300 transition-transform hover:-rotate-12" />
               )}
             </button>
+
+            {/* Offline & IndexedDB Persistent Sync Indicator */}
+            <OfflineSyncIndicator onManualSyncTriggered={onManualSyncTriggered} />
 
             {/* Gamification Level & XP pill (if patient) */}
             {!isTherapist && patient && (

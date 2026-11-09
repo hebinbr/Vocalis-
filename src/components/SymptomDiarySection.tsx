@@ -38,7 +38,6 @@ export const SymptomDiarySection: React.FC<SymptomDiarySectionProps> = ({
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Deseja excluir esta anotação do diário de sintomas?')) return;
     if (onDeleteSymptom) {
       setDeletingId(id);
       try {

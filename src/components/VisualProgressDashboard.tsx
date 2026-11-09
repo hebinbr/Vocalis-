@@ -21,7 +21,8 @@ import {
   Shield,
   Check,
   FileDown,
-  FileText
+  FileText,
+  Database
 } from 'lucide-react';
 import { ProgressStats, ExerciseLog, Patient, User, VocalSymptomEntry } from '../types';
 import { WeeklyAdherenceChart } from './WeeklyAdherenceChart';
@@ -56,10 +57,11 @@ export const VisualProgressDashboard: React.FC<VisualProgressDashboardProps> = (
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [localSymptoms, setLocalSymptoms] = useState<VocalSymptomEntry[]>([]);
   const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
-  const [exportSuccess, setExportSuccess] = useState<boolean>(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const handleExportPdf = async () => {
     setIsExportingPdf(true);
+    setExportError(null);
     try {
       // Busca dados sincronizados diretamente da API / SQLite
       const freshData = await api.getPatientReportData(currentUser?.id).catch(() => null);
@@ -75,7 +77,8 @@ export const VisualProgressDashboard: React.FC<VisualProgressDashboardProps> = (
       setTimeout(() => setExportSuccess(false), 4000);
     } catch (err) {
       console.error('Falha ao exportar relatório PDF:', err);
-      alert('Não foi possível gerar o arquivo PDF. Por favor, tente novamente.');
+      setExportError('Não foi possível gerar o arquivo PDF. Por favor, tente novamente.');
+      setTimeout(() => setExportError(null), 5000);
     } finally {
       setIsExportingPdf(false);
     }
@@ -128,13 +131,11 @@ export const VisualProgressDashboard: React.FC<VisualProgressDashboardProps> = (
   const unlockedBadgesCount = stats.badges.filter((b) => b.unlocked).length;
 
   const handleDelete = async (id: number) => {
-    if (confirm('Deseja excluir este registro de exercício?')) {
-      setDeletingId(id);
-      try {
-        await onDeleteLog(id);
-      } finally {
-        setDeletingId(null);
-      }
+    setDeletingId(id);
+    try {
+      await onDeleteLog(id);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -575,17 +576,21 @@ export const VisualProgressDashboard: React.FC<VisualProgressDashboardProps> = (
         </div>
       </div>
 
-      {/* Histórico Recente de Treinos (Criptografado com Exibição de XP) */}
+      {/* Histórico Recente de Treinos (Criptografado com Exibição de XP e Cache Local IndexedDB) */}
       <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm transition-colors">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 font-display">
                 Histórico de Sessões & XP Ganho
               </h3>
               <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-100 dark:border-emerald-800">
                 <Lock className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                 <span>Dados Criptografados no SQLite</span>
+              </span>
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-2 py-0.5 rounded-md border border-teal-100 dark:border-teal-800">
+                <Database className="w-3 h-3 text-teal-600 dark:text-teal-400" />
+                <span>Cache Persistente IndexedDB</span>
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -619,13 +624,25 @@ export const VisualProgressDashboard: React.FC<VisualProgressDashboardProps> = (
               return (
                 <div key={log.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/70 dark:hover:bg-slate-800/60 p-2 rounded-xl transition-colors">
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-bold text-slate-900 dark:text-slate-100">{log.exercise_title}</span>
                       <span className="text-xs text-slate-500 dark:text-slate-400">·</span>
                       <span className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">{formattedDate}</span>
                       {log.xp_earned && (
                         <span className="text-[11px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded-md border border-amber-200/80 dark:border-amber-800">
                           +{log.xp_earned} XP
+                        </span>
+                      )}
+                      {log.sync_status === 'pending' && (
+                        <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-800 px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                          <span>Gravado no IndexedDB (Pendente)</span>
+                        </span>
+                      )}
+                      {log.sync_status === 'synced' && (
+                        <span className="text-[10px] font-medium text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200/80 dark:border-emerald-800/80 px-1.5 py-0.5 rounded-md flex items-center gap-0.5" title="Sincronizado com o SQLite">
+                          <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
+                          <span>Sincronizado</span>
                         </span>
                       )}
                     </div>

@@ -29,6 +29,7 @@ import {
   INITIAL_LOGS,
 } from './data/initialClinicalData';
 import { api } from './services/api';
+import { offlineStorage } from './services/indexedDbService';
 import { Header } from './components/Header';
 import { ExerciseCatalog } from './components/ExerciseCatalog';
 import { VisualProgressDashboard } from './components/VisualProgressDashboard';
@@ -92,8 +93,19 @@ export default function App() {
     }
   }, [currentUser]);
 
-  // Load / Sync app data with SQLite backend in background with graceful retry
+  // Load / Sync app data with IndexedDB cache & backend
   const loadAppData = useCallback(async (retryCount = 0) => {
+    // 1. Instant local IndexedDB cache hydration
+    try {
+      const cachedLogs = await offlineStorage.getCachedLogs(currentUser?.id);
+      if (Array.isArray(cachedLogs) && cachedLogs.length > 0) {
+        setLogs(cachedLogs);
+      }
+    } catch (e) {
+      console.warn('[Vocalis IndexedDB] Falha na leitura inicial:', e);
+    }
+
+    // 2. Fetch authoritative data from server / SQLite
     try {
       const patientPromise = api.getPatient(currentUser?.id).catch((e) => {
         console.warn('Patient sync notice:', e);
@@ -135,8 +147,10 @@ export default function App() {
       if (Array.isArray(exercisesData) && exercisesData.length > 0) {
         setExercises(exercisesData);
       }
-      if (Array.isArray(logsData) && logsData.length > 0) {
-        setLogs(logsData);
+      if (Array.isArray(logsData)) {
+        // Merge with any un-synced pending logs in IndexedDB
+        const merged = await offlineStorage.mergeServerLogs(logsData, currentUser?.id);
+        setLogs(merged);
       }
       if (Array.isArray(remindersData) && remindersData.length > 0) {
         setReminders(remindersData);
@@ -147,9 +161,14 @@ export default function App() {
       if (Array.isArray(symptomsData)) {
         setSymptoms(symptomsData);
       }
+
+      // Check and sync any pending outbox items
+      if (navigator.onLine) {
+        offlineStorage.syncPendingLogs();
+      }
     } catch (err: any) {
       console.warn(`Background sync attempt ${retryCount + 1} notice:`, err?.message || err);
-      if (retryCount < 3) {
+      if (retryCount < 2) {
         setTimeout(() => {
           loadAppData(retryCount + 1);
         }, 1500 * (retryCount + 1));
@@ -161,38 +180,70 @@ export default function App() {
     loadAppData(0);
   }, [loadAppData]);
 
-  // Handle saving an exercise log with gamification celebration rewards
+  // Handle saving an exercise log with IndexedDB local persistence & auto-sync
   const handleSaveExerciseLog = async (logData: any) => {
     const previousBadges = stats?.badges?.filter((b) => b.unlocked).map((b) => b.id) || [];
-    const result = await api.addLog({
-      ...logData,
-      user_id: currentUser?.id,
-    });
 
-    // Refresh logs, stats, and patient level/xp/streak
-    const [updatedLogs, updatedStats, updatedPatient] = await Promise.all([
-      api.getLogs(currentUser?.id),
-      api.getProgressStats(currentUser?.id),
-      api.getPatient(currentUser?.id),
-    ]);
+    // 1. Persist immediately into IndexedDB with optimistic offline status
+    const { log: localLog, result: optimisticResult } = await offlineStorage.saveLogLocally(
+      logData,
+      patient,
+      stats
+    );
 
-    setLogs(updatedLogs);
-    setStats(updatedStats);
-    setPatient(updatedPatient);
+    // 2. Immediately update state so user sees their new workout right away
+    setLogs((prev) => [localLog, ...prev.filter((l) => l.local_id !== localLog.local_id && l.id !== localLog.id)]);
 
-    // Trigger Celebration Modal on Level-Up or Badge Unlock!
-    if (result.leveled_up) {
+    // 3. Optimistically update patient and stats in memory
+    setPatient((prev) => ({
+      ...prev,
+      xp_points: optimisticResult.total_xp,
+      level: optimisticResult.new_level,
+      level_title: optimisticResult.level_title,
+      streak_count: (prev.streak_count || 0) + 1,
+    }));
+
+    setStats((prev) => ({
+      ...prev,
+      xp_points: optimisticResult.total_xp,
+      level: optimisticResult.new_level,
+      level_title: optimisticResult.level_title,
+      total_sessions: (prev.total_sessions || 0) + 1,
+      total_minutes: (prev.total_minutes || 0) + Math.round(logData.duration_sec / 60),
+      streak_days: (prev.streak_days || 0) + 1,
+    }));
+
+    // 4. Trigger background sync if online, and refresh authoritative state once finished
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      offlineStorage.syncPendingLogs().then(async (syncRes) => {
+        if (syncRes.synced > 0) {
+          const [updatedLogs, updatedStats, updatedPatient] = await Promise.all([
+            api.getLogs(currentUser?.id).catch(() => null),
+            api.getProgressStats(currentUser?.id).catch(() => null),
+            api.getPatient(currentUser?.id).catch(() => null),
+          ]);
+          if (updatedLogs) {
+            const merged = await offlineStorage.mergeServerLogs(updatedLogs, currentUser?.id);
+            setLogs(merged);
+          }
+          if (updatedStats) setStats(updatedStats);
+          if (updatedPatient) setPatient(updatedPatient);
+        }
+      });
+    }
+
+    // 5. Trigger Celebration Modal on Level-Up or Badge Unlock!
+    if (optimisticResult.leveled_up) {
       setCelebrationData({
         type: 'level',
-        title: `Parabéns! Você subiu para o Nível ${result.new_level}!`,
-        subtitle: result.level_title || 'Nova Conquista Vocal',
+        title: `Parabéns! Você subiu para o Nível ${optimisticResult.new_level}!`,
+        subtitle: optimisticResult.level_title || 'Nova Conquista Vocal',
         description: `Sua disciplina vocal deu frutos. Novos desafios e técnicas avançadas foram liberados no seu plano de exercícios!`,
-        levelNumber: result.new_level,
-        xpBonus: result.xp_earned,
+        levelNumber: optimisticResult.new_level,
+        xpBonus: optimisticResult.xp_earned,
       });
     } else {
-      // Check if a new badge was unlocked
-      const newBadges = updatedStats.badges.filter((b) => b.unlocked && !previousBadges.includes(b.id));
+      const newBadges = stats.badges.filter((b) => b.unlocked && !previousBadges.includes(b.id));
       if (newBadges.length > 0) {
         const badge = newBadges[0];
         setCelebrationData({
@@ -200,12 +251,12 @@ export default function App() {
           title: `Distintivo Desbloqueado: ${badge.title}!`,
           subtitle: badge.category,
           description: badge.description,
-          xpBonus: result.xp_earned,
+          xpBonus: optimisticResult.xp_earned,
         });
       }
     }
 
-    return result;
+    return optimisticResult;
   };
 
   // Handle deleting an exercise log
@@ -314,6 +365,7 @@ export default function App() {
         onStartQuickExercise={handleStartQuickPractice}
         onOpenAuth={() => setShowAuthModal(true)}
         onLogout={handleLogout}
+        onManualSyncTriggered={() => loadAppData(0)}
       />
 
       {/* Main Content Area */}

@@ -109,7 +109,7 @@ export const TherapistDashboard: React.FC<TherapistDashboardProps> = ({
       await generatePatientClinicalPdf(reportData);
     } catch (err) {
       console.error('Falha ao exportar relatório em PDF:', err);
-      alert(`Não foi possível gerar o PDF de ${patientName}.`);
+      setErrorMsg(`Não foi possível gerar o PDF de ${patientName}.`);
     } finally {
       setExportingPatientId(null);
     }
@@ -248,9 +248,6 @@ export const TherapistDashboard: React.FC<TherapistDashboardProps> = ({
   };
 
   const handleDeleteExercise = async (id: string, title: string) => {
-    if (!confirm(`Tem certeza que deseja excluir o exercício "${title}"?`)) {
-      return;
-    }
     try {
       setDeletingExerciseId(id);
       await api.deleteExercise(id);
