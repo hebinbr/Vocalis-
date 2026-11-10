@@ -126,6 +126,11 @@ function handleNativeSqliteRoute(req: Request, res: Response): boolean {
   const urlPath = req.path.replace(/\/$/, '');
   const method = req.method;
 
+  // Always prevent stale caching of API responses
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
   try {
     if (method === 'GET') {
       if (urlPath === '/api/status' || urlPath === '/api/health') {
@@ -138,7 +143,9 @@ function handleNativeSqliteRoute(req: Request, res: Response): boolean {
         return true;
       }
       if (urlPath === '/api/exercises') {
-        res.json(sqliteService.getExercises());
+        const patientId = req.query.patient_id ? Number(req.query.patient_id) : undefined;
+        const includeAll = req.query.all === 'true' || req.query.all === '1';
+        res.json(sqliteService.getExercises(patientId, includeAll));
         return true;
       }
       if (urlPath === '/api/logs') {

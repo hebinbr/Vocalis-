@@ -1123,8 +1123,9 @@ def update_exercise(ex_id, data):
     caution_tips = data.get("caution_tips", existing["caution_tips"])
     min_level = int(data.get("min_level", existing["min_level"]))
     xp_reward = int(data.get("xp_reward", existing["xp_reward"]))
-    is_challenge = 1 if data.get("is_challenge", existing["is_challenge"]) else 0
-    video_url = data.get("video_url", existing["video_url"] if "video_url" in existing.keys() else None)
+    video_url = data["video_url"] if "video_url" in data else (existing["video_url"] if "video_url" in existing.keys() else None)
+    if video_url == "":
+        video_url = None
     patient_id = data.get("patient_id", existing["patient_id"] if "patient_id" in existing.keys() else None)
 
     cursor.execute("""

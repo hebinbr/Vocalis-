@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { ProgressStats, ExerciseLog, Patient, User, VocalSymptomEntry } from '../types';
 import { WeeklyAdherenceChart } from './WeeklyAdherenceChart';
+import { ThirtyDayConsistencyChart } from './ThirtyDayConsistencyChart';
 import { SymptomDiarySection } from './SymptomDiarySection';
 import { api } from '../services/api';
 import { generatePatientClinicalPdf } from '../utils/pdfExport';
@@ -478,7 +479,13 @@ export const VisualProgressDashboard: React.FC<VisualProgressDashboardProps> = (
         patientDailyGoalMinutes={targetMinutes}
       />
 
-      {/* 2. Diário de Sintomas & Autoavaliação Vocal */}
+      {/* 2. Gráfico de Linhas Recharts: Consistência e Tempo de Prática nos Últimos 30 Dias */}
+      <ThirtyDayConsistencyChart
+        logs={logs}
+        patient={patient}
+      />
+
+      {/* 3. Diário de Sintomas & Autoavaliação Vocal */}
       <SymptomDiarySection
         symptoms={localSymptoms}
         currentUser={currentUser}

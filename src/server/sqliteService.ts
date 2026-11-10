@@ -821,15 +821,20 @@ export const sqliteService = {
     return this.getPatient(userId);
   },
 
-  getExercises(patientId?: number) {
+  getExercises(patientId?: number, includeAll: boolean = false) {
     const db = getDatabase();
-    let query = 'SELECT * FROM exercises WHERE (patient_id IS NULL OR patient_id = 0';
+    let query: string;
     const params: any[] = [];
-    if (patientId) {
-      query += ' OR patient_id = ?';
+
+    if (includeAll || patientId === undefined) {
+      // Retorna todos os exercícios (usado pela fonoaudióloga para catálogo completo)
+      query = 'SELECT * FROM exercises ORDER BY is_custom DESC, min_level ASC, is_challenge ASC, id ASC';
+    } else {
+      // Retorna exercícios gerais + os específicos prescritos para este paciente
+      query = 'SELECT * FROM exercises WHERE (patient_id IS NULL OR patient_id = 0 OR patient_id = ?) ORDER BY is_custom DESC, min_level ASC, is_challenge ASC, id ASC';
       params.push(patientId);
     }
-    query += ') ORDER BY is_custom DESC, min_level ASC, is_challenge ASC, id ASC';
+
     const rows = db.prepare(query).all(...params);
     return rows.map((r: any) => ({
       id: r.id,
@@ -872,7 +877,7 @@ export const sqliteService = {
     const minLevel = Number(data.min_level || 1);
     const xpReward = Number(data.xp_reward || 45);
     const isChallenge = data.is_challenge ? 1 : 0;
-    const videoUrl = data.video_url || '';
+    const videoUrl = data.video_url ? String(data.video_url).trim() : null;
     const patientId = data.patient_id ? Number(data.patient_id) : null;
 
     db.prepare(`
@@ -900,7 +905,7 @@ export const sqliteService = {
         min_level: minLevel,
         xp_reward: xpReward,
         is_challenge: Boolean(isChallenge),
-        video_url: videoUrl,
+        video_url: videoUrl || undefined,
         therapist_id: therapistId,
         created_by_name: therapistName,
         patient_id: patientId,
@@ -926,8 +931,12 @@ export const sqliteService = {
     const defaultDurationSec = data.default_duration_sec ? Number(data.default_duration_sec) : existing.default_duration_sec;
     const targetHz = data.target_hz ? Number(data.target_hz) : existing.target_hz;
     const cautionTips = data.caution_tips ?? existing.caution_tips;
-    const videoUrl = data.video_url !== undefined ? data.video_url : existing.video_url;
-    const patientId = data.patient_id !== undefined ? (data.patient_id ? Number(data.patient_id) : null) : existing.patient_id;
+    const videoUrl = data.video_url !== undefined
+      ? (data.video_url ? String(data.video_url).trim() : null)
+      : existing.video_url;
+    const patientId = data.patient_id !== undefined
+      ? (data.patient_id ? Number(data.patient_id) : null)
+      : existing.patient_id;
 
     db.prepare(`
       UPDATE exercises SET
@@ -949,7 +958,13 @@ export const sqliteService = {
       defaultReps, defaultDurationSec, targetHz, cautionTips, videoUrl, patientId, id
     );
 
-    return { success: true, message: 'Exercício atualizado com sucesso' };
+    const updatedRow = this.getExercises(undefined, true).find((e: any) => e.id === id);
+
+    return {
+      success: true,
+      message: 'Exercício e link de vídeo atualizados com sucesso',
+      exercise: updatedRow
+    };
   },
 
   deleteExercise(id: string) {

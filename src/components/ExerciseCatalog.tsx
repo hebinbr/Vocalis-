@@ -50,6 +50,7 @@ interface ExerciseCatalogProps {
   onToggleReminder?: (id: number, currentActive: boolean) => Promise<void>;
   notificationScheduler?: UseNotificationSchedulerReturn;
   onGoToRemindersTab?: () => void;
+  onExerciseUpdated?: (updated: Exercise) => void;
 }
 
 const CATEGORIES = [
@@ -81,6 +82,7 @@ export const ExerciseCatalog: React.FC<ExerciseCatalogProps> = ({
   onToggleReminder,
   notificationScheduler,
   onGoToRemindersTab,
+  onExerciseUpdated,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
   const [selectedExerciseForTips, setSelectedExerciseForTips] = useState<Exercise | null>(null);
@@ -392,16 +394,25 @@ export const ExerciseCatalog: React.FC<ExerciseCatalogProps> = ({
                     <Info className="w-4 h-4" />
                   </button>
 
-                  {exercise.video_url && (
+                  {exercise.video_url ? (
                     <button
                       onClick={() => setSelectedVideoExercise(exercise)}
                       className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/60 rounded-lg transition-colors"
-                      title="Assistir demonstração de como fazer este exercício (Vídeo do YouTube)"
+                      title="Assistir demonstração em vídeo no YouTube"
                       aria-label="Assistir Vídeo Demonstrativo"
                     >
                       <Play className="w-4 h-4 fill-current" />
                     </button>
-                  )}
+                  ) : currentUser?.role === 'fonoaudiologa' ? (
+                    <button
+                      onClick={() => setSelectedVideoExercise(exercise)}
+                      className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/60 rounded-lg transition-colors"
+                      title="Vincular vídeo do YouTube a este exercício"
+                      aria-label="Vincular Vídeo do YouTube"
+                    >
+                      <Play className="w-4 h-4" />
+                    </button>
+                  ) : null}
 
                   {isLevelLocked ? (
                     <div
@@ -552,6 +563,12 @@ export const ExerciseCatalog: React.FC<ExerciseCatalogProps> = ({
           onStartExercise={(ex) => {
             setSelectedVideoExercise(null);
             handleExerciseClick(ex);
+          }}
+          onExerciseUpdated={(updated) => {
+            setSelectedVideoExercise(updated);
+            if (onExerciseUpdated) {
+              onExerciseUpdated(updated);
+            }
           }}
         />
       )}

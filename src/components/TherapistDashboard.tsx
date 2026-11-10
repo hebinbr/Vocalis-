@@ -1534,6 +1534,11 @@ export const TherapistDashboard: React.FC<TherapistDashboardProps> = ({
         <YouTubeVideoModal
           exercise={selectedExerciseForVideo}
           onClose={() => setSelectedExerciseForVideo(null)}
+          onExerciseUpdated={(updated) => {
+            setExercisesList((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+            loadExercises();
+            if (onRefreshExercises) onRefreshExercises();
+          }}
         />
       )}
     </div>

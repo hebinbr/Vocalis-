@@ -447,6 +447,10 @@ export default function App() {
                 onToggleReminder={handleToggleReminder}
                 notificationScheduler={notificationScheduler}
                 onGoToRemindersTab={() => setCurrentTab('reminders')}
+                onExerciseUpdated={(updated) => {
+                  setExercises((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+                  loadAppData(0);
+                }}
               />
             )}
 

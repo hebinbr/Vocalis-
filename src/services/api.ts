@@ -358,9 +358,13 @@ export const api = {
     }
   },
 
-  async getExercises(patientId?: number): Promise<Exercise[]> {
+  async getExercises(patientId?: number, includeAll?: boolean): Promise<Exercise[]> {
     try {
-      const url = patientId ? `/api/exercises?patient_id=${patientId}` : '/api/exercises';
+      const params = new URLSearchParams();
+      if (patientId) params.append('patient_id', String(patientId));
+      if (includeAll) params.append('all', 'true');
+      params.append('_t', String(Date.now()));
+      const url = `/api/exercises?${params.toString()}`;
       const list = await fetchJsonWithRetry<Exercise[]>(url);
       if (Array.isArray(list) && list.length > 0) return list;
       return INITIAL_EXERCISES;
@@ -370,58 +374,25 @@ export const api = {
   },
 
   async createExercise(data: Partial<Exercise> & { therapist_id?: number; created_by_name?: string }): Promise<{ success: boolean; exercise: Exercise }> {
-    try {
-      return await fetchJsonWithRetry('/api/exercises', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-    } catch {
-      const newEx: Exercise = {
-        id: data.id || `custom_${Date.now()}`,
-        title: data.title || 'Exercício Personalizado',
-        category: data.category || 'Personalizado',
-        target_range: data.target_range || 'Confortável',
-        description: data.description || '',
-        benefits: data.benefits || '',
-        instructions: data.instructions || ['Siga a orientação da fonoaudióloga.'],
-        default_reps: data.default_reps || 3,
-        default_duration_sec: data.default_duration_sec || 60,
-        target_hz: data.target_hz || 220,
-        caution_tips: data.caution_tips || '',
-        icon_name: data.icon_name || 'Activity',
-        min_level: data.min_level || 1,
-        xp_reward: data.xp_reward || 45,
-        is_challenge: Boolean(data.is_challenge),
-        video_url: data.video_url,
-        therapist_id: data.therapist_id,
-        created_by_name: data.created_by_name || 'Dra. Beatriz Menezes',
-        is_custom: true
-      };
-      return { success: true, exercise: newEx };
-    }
+    return await fetchJsonWithRetry('/api/exercises', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
   },
 
-  async updateExercise(id: string, data: Partial<Exercise>): Promise<{ success: boolean; message: string }> {
-    try {
-      return await fetchJsonWithRetry(`/api/exercises/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-    } catch {
-      return { success: true, message: 'Exercício atualizado com sucesso!' };
-    }
+  async updateExercise(id: string, data: Partial<Exercise>): Promise<{ success: boolean; message: string; exercise?: Exercise }> {
+    return await fetchJsonWithRetry<{ success: boolean; message: string; exercise?: Exercise }>(`/api/exercises/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
   },
 
   async deleteExercise(id: string): Promise<{ success: boolean; message: string }> {
-    try {
-      return await fetchJsonWithRetry(`/api/exercises/${id}`, {
-        method: 'DELETE'
-      });
-    } catch {
-      return { success: true, message: 'Exercício removido com sucesso!' };
-    }
+    return await fetchJsonWithRetry(`/api/exercises/${id}`, {
+      method: 'DELETE'
+    });
   },
 
   async getLogs(userId?: number): Promise<ExerciseLog[]> {

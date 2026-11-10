@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { Exercise, User } from '../types';
 import { api } from '../services/api';
-import { getYouTubeEmbedUrl, isValidYouTubeUrl } from '../utils/youtube';
+import { getYouTubeEmbedUrl, isValidYouTubeUrl, normalizeYouTubeUrl } from '../utils/youtube';
 
 interface TherapistExerciseModalProps {
   currentUser: User;
@@ -69,6 +69,52 @@ export const TherapistExerciseModal: React.FC<TherapistExerciseModalProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Synchronize state when exerciseToEdit changes or modal opens
+  React.useEffect(() => {
+    if (exerciseToEdit) {
+      setTitle(exerciseToEdit.title || '');
+      setCategory(exerciseToEdit.category || 'Trato Vocal Semiocluído');
+      setTargetRange(exerciseToEdit.target_range || 'Frequência Confortável');
+      setDescription(exerciseToEdit.description || '');
+      setBenefits(exerciseToEdit.benefits || '');
+      setVideoUrl(exerciseToEdit.video_url || '');
+      setInstructions(
+        exerciseToEdit.instructions && exerciseToEdit.instructions.length > 0
+          ? exerciseToEdit.instructions
+          : [
+              'Posicione-se confortavelmente com a postura ereta e ombros relaxados.',
+              'Assista à demonstração em vídeo para verificar a postura e emissão correta.',
+              'Execute a fonação suave sem forçar a musculatura do pescoço.'
+            ]
+      );
+      setDefaultReps(exerciseToEdit.default_reps || 4);
+      setDefaultDurationSec(exerciseToEdit.default_duration_sec || 45);
+      setTargetHz(exerciseToEdit.target_hz || 220);
+      setCautionTips(exerciseToEdit.caution_tips || 'Se sentir coceira, pigarro ou esforço excessivo, pare e tome um gole de água.');
+      setMinLevel(exerciseToEdit.min_level || 1);
+      setPatientId(exerciseToEdit.patient_id || '');
+    } else {
+      setTitle('');
+      setCategory('Trato Vocal Semiocluído');
+      setTargetRange('Frequência Confortável');
+      setDescription('');
+      setBenefits('');
+      setVideoUrl('');
+      setInstructions([
+        'Posicione-se confortavelmente com a postura ereta e ombros relaxados.',
+        'Assista à demonstração em vídeo para verificar a postura e emissão correta.',
+        'Execute a fonação suave sem forçar a musculatura do pescoço.'
+      ]);
+      setDefaultReps(4);
+      setDefaultDurationSec(45);
+      setTargetHz(220);
+      setCautionTips('Se sentir coceira, pigarro ou esforço excessivo, pare e tome um gole de água.');
+      setMinLevel(1);
+      setPatientId('');
+    }
+    setErrorMsg(null);
+  }, [exerciseToEdit]);
+
   // Live YouTube Embed Preview
   const embedPreviewUrl = getYouTubeEmbedUrl(videoUrl);
   const isVideoValid = !videoUrl || isValidYouTubeUrl(videoUrl);
@@ -110,6 +156,11 @@ export const TherapistExerciseModal: React.FC<TherapistExerciseModalProps> = ({
       setSubmitting(true);
       setErrorMsg(null);
 
+      // Normaliza para link limpo canônico do YouTube
+      const normalizedVideoUrl = videoUrl.trim()
+        ? normalizeYouTubeUrl(videoUrl.trim()) || videoUrl.trim()
+        : null;
+
       const payload = {
         title: title.trim(),
         category,
@@ -123,20 +174,21 @@ export const TherapistExerciseModal: React.FC<TherapistExerciseModalProps> = ({
         caution_tips: cautionTips.trim(),
         min_level: Number(minLevel),
         xp_reward: 50,
-        video_url: videoUrl.trim() || undefined,
-        patient_id: patientId ? Number(patientId) : undefined,
+        video_url: normalizedVideoUrl,
+        patient_id: patientId ? Number(patientId) : null,
         therapist_id: currentUser.id || 1,
         created_by_name: currentUser.name || 'Dra. Beatriz Menezes',
       };
 
       if (isEditing && exerciseToEdit) {
-        await api.updateExercise(exerciseToEdit.id, payload);
+        await api.updateExercise(exerciseToEdit.id, payload as any);
         onSaved({
           ...exerciseToEdit,
           ...payload,
+          video_url: normalizedVideoUrl || undefined,
         } as Exercise);
       } else {
-        const res = await api.createExercise(payload);
+        const res = await api.createExercise(payload as any);
         onSaved(res.exercise);
       }
 
