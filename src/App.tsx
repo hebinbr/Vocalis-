@@ -303,6 +303,16 @@ export default function App() {
     });
   };
 
+  // Handle updating a reminder with custom recurrence / time
+  const handleUpdateReminder = async (id: number, data: Partial<Reminder>) => {
+    await api.updateReminder(id, data);
+    setReminders((prev) => {
+      const next = prev.map((r) => (r.id === id ? { ...r, ...data } : r));
+      offlineStorage.cacheEntity('reminders', next);
+      return next;
+    });
+  };
+
   // Handle updating patient profile
   const handleUpdatePatient = async (data: Partial<Patient>) => {
     const updated = await api.updatePatient(data, currentUser?.id);
@@ -459,10 +469,13 @@ export default function App() {
             {currentTab === 'reminders' && (
               <RemindersManager
                 reminders={reminders}
+                exercises={exercises}
                 onAddReminder={handleAddReminder}
                 onToggleReminder={handleToggleReminder}
                 onDeleteReminder={handleDeleteReminder}
+                onUpdateReminder={handleUpdateReminder}
                 notificationScheduler={notificationScheduler}
+                onStartExercise={handleStartReminderExercise}
               />
             )}
           </>
