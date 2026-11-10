@@ -53,6 +53,25 @@ export function useNotificationScheduler(
 
   }, [onOpenExercise]);
 
+  const firedMapRef = useRef<Set<string>>(new Set());
+
+  // Flashes document title to alert the patient when browsing other tabs
+  const flashTitle = useCallback((alertTitle: string) => {
+    if (typeof document === 'undefined') return;
+    const originalTitle = document.title;
+    let isFlashed = false;
+    let count = 0;
+    const interval = setInterval(() => {
+      document.title = isFlashed ? originalTitle : `⏰ ${alertTitle}`;
+      isFlashed = !isFlashed;
+      count++;
+      if (count >= 12 || document.visibilityState === 'visible') {
+        clearInterval(interval);
+        document.title = originalTitle;
+      }
+    }, 1000);
+  }, []);
+
   // Inicializa o Web Worker de segundo plano
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -63,9 +82,13 @@ export function useNotificationScheduler(
       setIsWorkerActive(true);
 
       worker.onmessage = (e: MessageEvent) => {
-        const { type, reminder, currentTime } = e.data || {};
+        const { type, reminder, currentTime, dateStr } = e.data || {};
         if (type === 'TRIGGER_REMINDER' && reminder) {
-          handleReminderTriggered(reminder, currentTime);
+          const triggerKey = `${reminder.id}_${dateStr || ''}_${currentTime || ''}`;
+          if (!firedMapRef.current.has(triggerKey)) {
+            firedMapRef.current.add(triggerKey);
+            handleReminderTriggered(reminder, currentTime);
+          }
         }
       };
 
@@ -82,6 +105,49 @@ export function useNotificationScheduler(
       console.warn('[Vocalis] Não foi possível iniciar Web Worker separado, usando timer local:', err);
     }
   }, []);
+
+  // Main-thread fallback ticker: checks every 10 seconds in addition to Web Worker
+  // Guarantees reliable execution even if worker is restricted by iframe sandbox
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const DAY_MAP = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+
+    const checkLocalReminders = () => {
+      const now = new Date();
+      const dayIndex = now.getDay();
+      const currentDay = DAY_MAP[dayIndex];
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const currentTime = `${hours}:${minutes}`;
+      const dateStr = now.toISOString().split('T')[0];
+
+      for (const rem of reminders) {
+        if (!rem.is_active) continue;
+        const days = Array.isArray(rem.days_mask) ? rem.days_mask : [];
+        if (!days.includes(currentDay)) continue;
+
+        if (rem.time_str === currentTime) {
+          const triggerKey = `${rem.id}_${dateStr}_${currentTime}`;
+          if (!firedMapRef.current.has(triggerKey)) {
+            firedMapRef.current.add(triggerKey);
+            handleReminderTriggered(rem, currentTime);
+          }
+        }
+      }
+
+      // Cleanup old fired keys
+      if (firedMapRef.current.size > 200) {
+        firedMapRef.current.clear();
+      }
+    };
+
+    const intervalId = setInterval(checkLocalReminders, 10000);
+    // Initial check
+    checkLocalReminders();
+
+    return () => clearInterval(intervalId);
+  }, [reminders]);
 
   // Atualiza lembretes no Web Worker sempre que a lista de lembretes mudar
   useEffect(() => {
@@ -171,9 +237,10 @@ export function useNotificationScheduler(
       const title = `Vocalis: ${reminder.title}`;
       const body = `⏰ Horário de ${catLabel} agendado para às ${reminder.time_str}. Clique para praticar com segurança.`;
 
+      flashTitle(reminder.title);
       dispatchNotification(title, body, reminder);
     },
-    [isSubscribed, playChime, dispatchNotification]
+    [isSubscribed, playChime, dispatchNotification, flashTitle]
   );
 
   // Solicita permissão do navegador

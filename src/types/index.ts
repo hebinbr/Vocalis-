@@ -144,6 +144,7 @@ export interface Reminder {
   is_active: boolean;
   sound_alert: boolean;
   category: 'aquecimento' | 'hidratacao' | 'exercicio' | 'desaquecimento';
+  exercise_id?: string;
 }
 
 export interface DayProgress {

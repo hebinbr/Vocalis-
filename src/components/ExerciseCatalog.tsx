@@ -20,12 +20,17 @@ import {
   Zap,
   KeyRound,
   AlertCircle,
-  Play
+  Play,
+  Clock,
+  Bell
 } from 'lucide-react';
-import { Exercise, User, ProgressStats, ExerciseLog, Patient } from '../types';
+import { Exercise, User, ProgressStats, ExerciseLog, Patient, Reminder } from '../types';
 import { DailyVocalTip } from './DailyVocalTip';
 import { ActivationCodePrompt } from './ActivationCodePrompt';
 import { YouTubeVideoModal } from './YouTubeVideoModal';
+import { PatientExerciseSchedulerCard } from './PatientExerciseSchedulerCard';
+import { ExerciseSchedulerModal } from './ExerciseSchedulerModal';
+import { UseNotificationSchedulerReturn } from '../hooks/useNotificationScheduler';
 import vocalAnatomyImg from '../assets/images/vocal_anatomy_guide_1793024499378.jpg';
 
 interface ExerciseCatalogProps {
@@ -36,10 +41,15 @@ interface ExerciseCatalogProps {
   stats?: ProgressStats | null;
   logs?: ExerciseLog[];
   patient?: Patient | null;
+  reminders?: Reminder[];
   onStartExercise: (exercise: Exercise) => void;
   onOpenVault: () => void;
   onActivateUser?: (user: User) => void;
   onOpenTherapistPanel?: () => void;
+  onAddReminder?: (data: Partial<Reminder>) => Promise<void>;
+  onToggleReminder?: (id: number, currentActive: boolean) => Promise<void>;
+  notificationScheduler?: UseNotificationSchedulerReturn;
+  onGoToRemindersTab?: () => void;
 }
 
 const CATEGORIES = [
@@ -62,15 +72,33 @@ export const ExerciseCatalog: React.FC<ExerciseCatalogProps> = ({
   stats = null,
   logs = [],
   patient = null,
+  reminders = [],
   onStartExercise,
   onOpenVault,
   onActivateUser,
   onOpenTherapistPanel,
+  onAddReminder,
+  onToggleReminder,
+  notificationScheduler,
+  onGoToRemindersTab,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
   const [selectedExerciseForTips, setSelectedExerciseForTips] = useState<Exercise | null>(null);
   const [selectedVideoExercise, setSelectedVideoExercise] = useState<Exercise | null>(null);
   const [showActivationModal, setShowActivationModal] = useState<boolean>(false);
+  const [isSchedulerModalOpen, setIsSchedulerModalOpen] = useState<boolean>(false);
+  const [exerciseToSchedule, setExerciseToSchedule] = useState<Exercise | null>(null);
+
+  const handleOpenScheduler = (exercise?: Exercise) => {
+    setExerciseToSchedule(exercise || null);
+    setIsSchedulerModalOpen(true);
+  };
+
+  const handleSaveSchedule = async (reminderData: Partial<Reminder>) => {
+    if (onAddReminder) {
+      await onAddReminder(reminderData);
+    }
+  };
 
   const filteredExercises = exercises.filter((ex) => {
     if (selectedCategory === 'Todos') return true;
@@ -131,6 +159,15 @@ export const ExerciseCatalog: React.FC<ExerciseCatalogProps> = ({
           onOpenTherapistPanel={onOpenTherapistPanel}
         />
       )}
+
+      {/* 3. Horário Programado de Exercícios Vocais & Notificações */}
+      <PatientExerciseSchedulerCard
+        reminders={reminders}
+        onOpenScheduler={handleOpenScheduler}
+        onToggleReminder={onToggleReminder || (async () => {})}
+        notificationScheduler={notificationScheduler}
+        onGoToRemindersTab={onGoToRemindersTab}
+      />
 
       {/* Visual Clinical Guide Hero Banner */}
       <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-6 md:p-8 shadow-sm overflow-hidden transition-colors">
@@ -337,6 +374,16 @@ export const ExerciseCatalog: React.FC<ExerciseCatalogProps> = ({
 
                 <div className="flex items-center gap-1.5">
                   <button
+                    onClick={() => handleOpenScheduler(exercise)}
+                    className="p-1.5 text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/60 rounded-lg transition-colors flex items-center gap-1 text-[11px] font-medium"
+                    title="Configurar horário de treino para este exercício"
+                    aria-label="Agendar Horário"
+                  >
+                    <Clock className="w-4 h-4" />
+                    <span className="hidden sm:inline">Agendar</span>
+                  </button>
+
+                  <button
                     onClick={() => setSelectedExerciseForTips(exercise)}
                     className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                     title="Ver Orientações & Instruções"
@@ -508,6 +555,19 @@ export const ExerciseCatalog: React.FC<ExerciseCatalogProps> = ({
           }}
         />
       )}
+
+      {/* Modal de Agendamento de Horário de Exercício & Notificação */}
+      <ExerciseSchedulerModal
+        isOpen={isSchedulerModalOpen}
+        onClose={() => {
+          setIsSchedulerModalOpen(false);
+          setExerciseToSchedule(null);
+        }}
+        exercises={exercises}
+        preSelectedExercise={exerciseToSchedule}
+        onSaveSchedule={handleSaveSchedule}
+        notificationScheduler={notificationScheduler}
+      />
     </div>
   );
 };

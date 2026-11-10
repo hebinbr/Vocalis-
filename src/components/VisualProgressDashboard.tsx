@@ -57,6 +57,7 @@ export const VisualProgressDashboard: React.FC<VisualProgressDashboardProps> = (
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [localSymptoms, setLocalSymptoms] = useState<VocalSymptomEntry[]>([]);
   const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
+  const [exportSuccess, setExportSuccess] = useState<boolean>(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
   const handleExportPdf = async () => {

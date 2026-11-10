@@ -101,6 +101,10 @@ export default function App() {
       if (Array.isArray(cachedLogs) && cachedLogs.length > 0) {
         setLogs(cachedLogs);
       }
+      const cachedReminders = await offlineStorage.getCachedEntity<Reminder[]>('reminders');
+      if (Array.isArray(cachedReminders) && cachedReminders.length > 0) {
+        setReminders(cachedReminders);
+      }
     } catch (e) {
       console.warn('[Vocalis IndexedDB] Falha na leitura inicial:', e);
     }
@@ -154,6 +158,7 @@ export default function App() {
       }
       if (Array.isArray(remindersData) && remindersData.length > 0) {
         setReminders(remindersData);
+        offlineStorage.cacheEntity('reminders', remindersData);
       }
       if (statsData && statsData.level_title) {
         setStats(statsData);
@@ -275,20 +280,27 @@ export default function App() {
     await api.addReminder(data, currentUser?.id);
     const updated = await api.getReminders(currentUser?.id);
     setReminders(updated);
+    offlineStorage.cacheEntity('reminders', updated);
   };
 
   // Handle toggling a reminder
   const handleToggleReminder = async (id: number, currentActive: boolean) => {
     await api.updateReminder(id, { is_active: !currentActive });
-    setReminders((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, is_active: !currentActive } : r))
-    );
+    setReminders((prev) => {
+      const next = prev.map((r) => (r.id === id ? { ...r, is_active: !currentActive } : r));
+      offlineStorage.cacheEntity('reminders', next);
+      return next;
+    });
   };
 
   // Handle deleting a reminder
   const handleDeleteReminder = async (id: number) => {
     await api.deleteReminder(id);
-    setReminders((prev) => prev.filter((r) => r.id !== id));
+    setReminders((prev) => {
+      const next = prev.filter((r) => r.id !== id);
+      offlineStorage.cacheEntity('reminders', next);
+      return next;
+    });
   };
 
   // Handle updating patient profile
@@ -317,12 +329,18 @@ export default function App() {
   // Handle start exercise triggered from background push notification or toast
   const handleStartReminderExercise = useCallback((reminder: Reminder) => {
     setCurrentTab('exercises');
-    const match = exercises.find((e) =>
-      reminder.title.toLowerCase().includes(e.title.toLowerCase()) ||
-      (reminder.category === 'aquecimento' && e.id === 'vib_labios') ||
-      (reminder.category === 'hidratacao' && e.id === 'canudo_sovte') ||
-      (reminder.category === 'desaquecimento' && e.id === 'vocal_fry')
-    );
+    let match: Exercise | undefined;
+    if (reminder.exercise_id) {
+      match = exercises.find((e) => e.id === reminder.exercise_id);
+    }
+    if (!match) {
+      match = exercises.find((e) =>
+        reminder.title.toLowerCase().includes(e.title.toLowerCase()) ||
+        (reminder.category === 'aquecimento' && e.id === 'vib_labios') ||
+        (reminder.category === 'hidratacao' && e.id === 'canudo_sovte') ||
+        (reminder.category === 'desaquecimento' && e.id === 'vocal_fry')
+      );
+    }
     if (match) {
       setActiveExercise(match);
     } else if (exercises.length > 0) {
@@ -407,6 +425,7 @@ export default function App() {
                 stats={stats}
                 logs={logs}
                 patient={patient}
+                reminders={reminders}
                 onStartExercise={(ex) => setActiveExercise(ex)}
                 onOpenVault={() => setShowVaultModal(true)}
                 onActivateUser={(updated) => {
@@ -414,6 +433,10 @@ export default function App() {
                   loadAppData();
                 }}
                 onOpenTherapistPanel={() => setCurrentTab('therapist')}
+                onAddReminder={handleAddReminder}
+                onToggleReminder={handleToggleReminder}
+                notificationScheduler={notificationScheduler}
+                onGoToRemindersTab={() => setCurrentTab('reminders')}
               />
             )}
 

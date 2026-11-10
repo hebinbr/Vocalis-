@@ -17,6 +17,22 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
       (function() {
+        // Fix for browser extensions that attempt to assign window.fetch when it only has a getter
+        try {
+          var _origFetch = window.fetch;
+          var _currentFetch = _origFetch;
+          Object.defineProperty(window, 'fetch', {
+            get: function() {
+              return _currentFetch || _origFetch;
+            },
+            set: function(fn) {
+              _currentFetch = fn;
+            },
+            configurable: true,
+            enumerable: true
+          });
+        } catch (err) {}
+
         try {
           var saved = localStorage.getItem('vocalis_theme');
           if (saved === 'dark' || (!saved && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
@@ -26,12 +42,36 @@
           }
         } catch (e) {}
 
-        // Global unhandled error logging
+        // Global unhandled error logging (ignoring third-party browser extensions)
         window.addEventListener('error', function(e) {
-          console.error('[Vocalis Runtime Tracker]:', e.error || e.message);
+          var filename = (e && e.filename) || '';
+          var msg = (e && e.message) || (e && e.error && e.error.message) || '';
+          var stack = (e && e.error && e.error.stack) || '';
+
+          if (
+            filename.indexOf('chrome-extension:') !== -1 ||
+            filename.indexOf('moz-extension:') !== -1 ||
+            stack.indexOf('chrome-extension:') !== -1 ||
+            msg.indexOf('Cannot set property fetch') !== -1
+          ) {
+            if (e.preventDefault) e.preventDefault();
+            return;
+          }
+
+          console.error('[Vocalis Runtime Tracker]:', e.error || msg);
         });
+
         window.addEventListener('unhandledrejection', function(e) {
-          console.warn('[Vocalis Unhandled Rejection]:', e.reason);
+          var reason = (e && e.reason) || '';
+          var reasonStr = String(reason);
+          if (
+            reasonStr.indexOf('chrome-extension:') !== -1 ||
+            reasonStr.indexOf('Cannot set property fetch') !== -1
+          ) {
+            if (e.preventDefault) e.preventDefault();
+            return;
+          }
+          console.warn('[Vocalis Unhandled Rejection]:', reason);
         });
 
         // Executa limpeza de service workers legados de forma passiva somente após o carregamento da janela
