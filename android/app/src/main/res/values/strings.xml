@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Vocalis</string>
+    <string name="notification_channel_id">vocalis_reminders_channel</string>
+    <string name="notification_channel_name">Lembretes de Terapia Vocal</string>
+</resources>

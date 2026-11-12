@@ -42,9 +42,19 @@ import { AuthModal } from './components/AuthModal';
 import { TherapistDashboard } from './components/TherapistDashboard';
 import { useNotificationScheduler } from './hooks/useNotificationScheduler';
 import { ActiveReminderToast } from './components/ActiveReminderToast';
+import { MobileBottomNav } from './components/MobileBottomNav';
+import { OfflineIndicator } from './components/OfflineIndicator';
 
 export default function App() {
-  const [currentTab, setCurrentTab] = useState<'exercises' | 'progress' | 'reminders' | 'vault' | 'therapist'>('exercises');
+  const [currentTab, setCurrentTab] = useState<'exercises' | 'progress' | 'reminders' | 'vault' | 'therapist'>(() => {
+    try {
+      const tabParam = new URLSearchParams(window.location.search).get('tab');
+      if (tabParam === 'progress' || tabParam === 'reminders' || tabParam === 'exercises' || tabParam === 'therapist') {
+        return tabParam;
+      }
+    } catch {}
+    return 'exercises';
+  });
   const [patient, setPatient] = useState<Patient>(INITIAL_PATIENT);
   const [exercises, setExercises] = useState<Exercise[]>(INITIAL_EXERCISES);
   const [logs, setLogs] = useState<ExerciseLog[]>(INITIAL_LOGS);
@@ -397,7 +407,7 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-20">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-24 md:pb-20">
 
         {/* Loading Spinner */}
         {loading && !patient && currentTab !== 'therapist' ? (
@@ -487,7 +497,7 @@ export default function App() {
       </main>
 
       {/* Footer with Minimalist Clinical Assurance */}
-      <footer className="border-t border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 py-6 text-xs text-slate-500 dark:text-slate-400 transition-colors">
+      <footer className="border-t border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 pt-6 pb-24 md:pb-6 text-xs text-slate-500 dark:text-slate-400 transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
@@ -561,6 +571,22 @@ export default function App() {
         alert={notificationScheduler.lastAlert}
         onClose={notificationScheduler.clearLastAlert}
         onStartExercise={handleStartReminderExercise}
+      />
+
+      {/* Offline Status Toast for Android / PWA */}
+      <OfflineIndicator />
+
+      {/* Android Material-3 Style Mobile Bottom Navigation */}
+      <MobileBottomNav
+        currentTab={currentTab}
+        isTherapist={currentUser?.role === 'fonoaudiologa'}
+        onSelectTab={(tab) => {
+          if (tab === 'vault') {
+            setShowVaultModal(true);
+          } else {
+            setCurrentTab(tab);
+          }
+        }}
       />
     </div>
   );

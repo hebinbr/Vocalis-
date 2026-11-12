@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Vocalis" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/vocalis_teal</item>
+        <item name="colorPrimaryDark">@color/vocalis_teal_dark</item>
+        <item name="android:statusBarColor">@color/vocalis_teal_dark</item>
+    </style>
+</resources>

@@ -2,7 +2,7 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Vocalis - Terapia Vocal & Fonoaudiologia</title>
     <meta name="description" content="Aplicativo para acompanhamento de exercícios vocais com lembretes diários, progresso visual, backend Python, SQLite e criptografia de dados dos pacientes." />
     <meta property="og:title" content="Vocalis - Terapia Vocal & Fonoaudiologia" />
@@ -10,8 +10,13 @@
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="theme-color" content="#0d9488" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Vocalis" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-    <link rel="apple-touch-icon" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -74,13 +79,16 @@
           console.warn('[Vocalis Unhandled Rejection]:', reason);
         });
 
-        // Executa limpeza de service workers legados de forma passiva somente após o carregamento da janela
+        // Remove apenas o antigo service-worker.js legado caso esteja em cache, preservando o /sw.js da PWA
         window.addEventListener('load', function() {
           try {
             if ('serviceWorker' in navigator && navigator.serviceWorker.getRegistrations) {
               navigator.serviceWorker.getRegistrations().then(function(regs) {
                 for (var i = 0; i < regs.length; i++) {
-                  regs[i].unregister().catch(function() {});
+                  var scriptUrl = (regs[i].active && regs[i].active.scriptURL) || '';
+                  if (scriptUrl.indexOf('/service-worker.js') !== -1) {
+                    regs[i].unregister().catch(function() {});
+                  }
                 }
               }).catch(function() {});
             }

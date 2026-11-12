@@ -16,6 +16,7 @@ import {
 import { Patient, User } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import { OfflineSyncIndicator } from './OfflineSyncIndicator';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface HeaderProps {
   currentTab: 'exercises' | 'progress' | 'reminders' | 'vault' | 'therapist';
@@ -146,6 +147,9 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </button>
 
+            {/* Android / PWA Install Button */}
+            <PWAInstallButton />
+
             {/* Offline & IndexedDB Persistent Sync Indicator */}
             <OfflineSyncIndicator onManualSyncTriggered={onManualSyncTriggered} />
 
@@ -245,55 +249,6 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
           </div>
-        </div>
-
-        {/* Mobile secondary navigation strip */}
-        <div className="flex md:hidden items-center justify-between py-2 border-t border-slate-100 dark:border-slate-800 text-xs font-medium text-slate-600 dark:text-slate-300 overflow-x-auto gap-2">
-          {isTherapist && (
-            <button
-              onClick={() => onSelectTab('therapist')}
-              className={`px-2.5 py-1.5 rounded-md whitespace-nowrap flex items-center gap-1 ${
-                currentTab === 'therapist' ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-900 dark:text-indigo-300 font-bold' : ''
-              }`}
-            >
-              <Stethoscope className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-              <span>Painel Fono</span>
-            </button>
-          )}
-
-          <button
-            onClick={() => onSelectTab('exercises')}
-            className={`px-2.5 py-1.5 rounded-md whitespace-nowrap ${
-              currentTab === 'exercises' ? 'bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 font-semibold' : ''
-            }`}
-          >
-            Exercícios
-          </button>
-          <button
-            onClick={() => onSelectTab('progress')}
-            className={`px-2.5 py-1.5 rounded-md whitespace-nowrap ${
-              currentTab === 'progress' ? 'bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 font-semibold' : ''
-            }`}
-          >
-            Progresso
-          </button>
-          <button
-            onClick={() => onSelectTab('reminders')}
-            className={`px-2.5 py-1.5 rounded-md whitespace-nowrap ${
-              currentTab === 'reminders' ? 'bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 font-semibold' : ''
-            }`}
-          >
-            Lembretes
-          </button>
-          <button
-            onClick={() => onSelectTab('vault')}
-            className={`px-2.5 py-1.5 rounded-md whitespace-nowrap flex items-center gap-1 ${
-              currentTab === 'vault' ? 'bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 font-semibold' : ''
-            }`}
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span>Vault</span>
-          </button>
         </div>
       </div>
     </header>

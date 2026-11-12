@@ -22,6 +22,7 @@ import {
   PdfExportConfig,
   ReportPeriod
 } from '../utils/pdfExport';
+import { shareOrDownloadPdfBlob, triggerHaptic } from '../utils/androidBridge';
 
 interface PdfExportModalProps {
   isOpen: boolean;
@@ -165,24 +166,15 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
           config: buildConfig(true),
         }));
 
-      const file = new File([result.blob], result.filename, { type: 'application/pdf' });
-      const nav = navigator as any;
-
-      if (nav.share && (!nav.canShare || nav.canShare({ files: [file] }))) {
-        await nav.share({
-          title: 'Relatório Clínico Vocalis',
-          text: `Relatório de evolução vocal de ${patient?.name || 'Paciente'} para acompanhamento fonoaudiológico.`,
-          files: [file],
-        });
-      } else {
-        // Fallback: baixa o arquivo diretamente
-        const link = document.createElement('a');
-        link.href = result.blobUrl;
-        link.download = result.filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        if (onExportSuccess) onExportSuccess(result.filename);
+      triggerHaptic(15);
+      const method = await shareOrDownloadPdfBlob(
+        result.blob,
+        result.filename,
+        'Relatório Clínico Vocalis',
+        `Relatório de evolução vocal de ${patient?.name || 'Paciente'} para acompanhamento fonoaudiológico.`
+      );
+      if (method === 'download' && onExportSuccess) {
+        onExportSuccess(result.filename);
       }
     } catch (err: any) {
       if (err?.name !== 'AbortError') {

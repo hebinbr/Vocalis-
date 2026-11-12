@@ -27,6 +27,7 @@ import {
 import { Exercise, SessionSaveResult } from '../types';
 import { useVocalAudio } from '../hooks/useVocalAudio';
 import { getYouTubeEmbedUrl } from '../utils/youtube';
+import { acquireWakeLock, releaseWakeLock, triggerHaptic } from '../utils/androidBridge';
 
 interface ExerciseSessionModalProps {
   exercise: Exercise;
@@ -104,6 +105,18 @@ export const ExerciseSessionModal: React.FC<ExerciseSessionModalProps> = ({
     }
   };
 
+  // Mantém a tela do Android ativa durante a prática vocal
+  useEffect(() => {
+    if (phase === 'active' || phase === 'rest') {
+      acquireWakeLock();
+    } else {
+      releaseWakeLock();
+    }
+    return () => {
+      releaseWakeLock();
+    };
+  }, [phase]);
+
   // Main practice timer
   useEffect(() => {
     let timer: any = null;
@@ -113,6 +126,7 @@ export const ExerciseSessionModal: React.FC<ExerciseSessionModalProps> = ({
           if (prev <= 1) {
             // Rep completed
             playChime('tick');
+            triggerHaptic([40, 30, 40]);
             if (currentRep < totalReps) {
               setPhase('rest');
               return 15; // 15 seconds rest

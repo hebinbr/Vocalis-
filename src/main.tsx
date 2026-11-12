@@ -82,14 +82,14 @@ if (rootElement) {
   );
 }
 
-// Desregistra Service Workers residuais para garantir carregamento instantâneo
+// Registra Service Worker da PWA (Workbox) para funcionamento offline e instalação Android
 try {
-  if (typeof window !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker?.getRegistrations) {
-    navigator.serviceWorker.getRegistrations().then((registrations) => {
-      for (const reg of registrations) {
-        reg.unregister().catch(() => {});
-      }
-    }).catch(() => {});
+  if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+    import('virtual:pwa-register')
+      .then(({ registerSW }) => {
+        registerSW({ immediate: true });
+      })
+      .catch(() => {});
   }
 } catch {
   // Ignora restrições de permissões em sandbox iframes

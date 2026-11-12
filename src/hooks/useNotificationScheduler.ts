@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Reminder } from '../types';
 import { useVocalAudio } from './useVocalAudio';
+import { triggerHaptic } from '../utils/androidBridge';
 
 export interface UseNotificationSchedulerReturn {
   permission: NotificationPermission | 'unsupported';
@@ -51,6 +52,13 @@ export function useNotificationScheduler(
       setPermission('unsupported');
     }
 
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready
+        .then((reg) => {
+          swRegRef.current = reg;
+        })
+        .catch(() => {});
+    }
   }, [onOpenExercise]);
 
   const firedMapRef = useRef<Set<string>>(new Set());
@@ -159,16 +167,25 @@ export function useNotificationScheduler(
     }
   }, [reminders]);
 
-  // Despacha a notificação no navegador
+  // Despacha a notificação no navegador / Android
   const dispatchNotification = useCallback(
     async (title: string, body: string, reminderData?: any) => {
+      triggerHaptic([200, 100, 200]);
+
+      if (typeof window !== 'undefined' && window.VocalisAndroid?.showNotification) {
+        try {
+          window.VocalisAndroid.showNotification(title, body);
+          return true;
+        } catch {}
+      }
+
       if (typeof window === 'undefined' || !('Notification' in window)) return false;
       if (Notification.permission !== 'granted') return false;
 
       const options: NotificationOptions = {
         body,
-        icon: '/icon.svg',
-        badge: '/icon.svg',
+        icon: '/pwa-192x192.png',
+        badge: '/pwa-192x192.png',
         tag: `vocalis-reminder-${reminderData?.id || Date.now()}`,
         requireInteraction: true,
         data: reminderData,

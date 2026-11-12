@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Vocalis - Terapia Vocal & Fonoaudiologia</title>
+    <meta name="description" content="Aplicativo para acompanhamento de exercícios vocais com lembretes diários, progresso visual, backend Python, SQLite e criptografia de dados dos pacientes." />
+    <meta property="og:title" content="Vocalis - Terapia Vocal & Fonoaudiologia" />
+    <meta property="og:description" content="Aplicativo para acompanhamento de exercícios vocais com lembretes diários, progresso visual, backend Python, SQLite e criptografia de dados dos pacientes." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#0d9488" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Vocalis" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./pwa-192x192.png" />
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      (function() {
+        // Fix for browser extensions that attempt to assign window.fetch when it only has a getter
+        try {
+          var _origFetch = window.fetch;
+          var _currentFetch = _origFetch;
+          Object.defineProperty(window, 'fetch', {
+            get: function() {
+              return _currentFetch || _origFetch;
+            },
+            set: function(fn) {
+              _currentFetch = fn;
+            },
+            configurable: true,
+            enumerable: true
+          });
+        } catch (err) {}
+
+        try {
+          var saved = localStorage.getItem('vocalis_theme');
+          if (saved === 'dark' || (!saved && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        } catch (e) {}
+
+        // Global unhandled error logging (ignoring third-party browser extensions)
+        window.addEventListener('error', function(e) {
+          var filename = (e && e.filename) || '';
+          var msg = (e && e.message) || (e && e.error && e.error.message) || '';
+          var stack = (e && e.error && e.error.stack) || '';
+
+          if (
+            filename.indexOf('chrome-extension:') !== -1 ||
+            filename.indexOf('moz-extension:') !== -1 ||
+            stack.indexOf('chrome-extension:') !== -1 ||
+            msg.indexOf('Cannot set property fetch') !== -1
+          ) {
+            if (e.preventDefault) e.preventDefault();
+            return;
+          }
+
+          console.error('[Vocalis Runtime Tracker]:', e.error || msg);
+        });
+
+        window.addEventListener('unhandledrejection', function(e) {
+          var reason = (e && e.reason) || '';
+          var reasonStr = String(reason);
+          if (
+            reasonStr.indexOf('chrome-extension:') !== -1 ||
+            reasonStr.indexOf('Cannot set property fetch') !== -1
+          ) {
+            if (e.preventDefault) e.preventDefault();
+            return;
+          }
+          console.warn('[Vocalis Unhandled Rejection]:', reason);
+        });
+
+        // Remove apenas o antigo service-worker.js legado caso esteja em cache, preservando o /sw.js da PWA
+        window.addEventListener('load', function() {
+          try {
+            if ('serviceWorker' in navigator && navigator.serviceWorker.getRegistrations) {
+              navigator.serviceWorker.getRegistrations().then(function(regs) {
+                for (var i = 0; i < regs.length; i++) {
+                  var scriptUrl = (regs[i].active && regs[i].active.scriptURL) || '';
+                  if (scriptUrl.indexOf('/service-worker.js') !== -1) {
+                    regs[i].unregister().catch(function() {});
+                  }
+                }
+              }).catch(function() {});
+            }
+          } catch (e) {}
+        });
+      })();
+    </script>
+    <script type="module" crossorigin src="./assets/index-BmPW33XY.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-CW54bEdl.css">
+  <link rel="manifest" href="./manifest.webmanifest"></head>
+  <body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 antialiased selection:bg-teal-500 selection:text-white transition-colors duration-200">
+    <div id="root">
+      <!-- Loading fallback visual elegante exibido antes da montagem do React -->
+      <div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif; background-color: #f8fafc; color: #0f172a; padding: 24px;">
+        <div style="width: 56px; height: 56px; border-radius: 18px; background: linear-gradient(135deg, #0d9488, #0f766e); color: white; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 800; box-shadow: 0 10px 25px -5px rgba(13, 148, 136, 0.35); margin-bottom: 16px;">
+          V
+        </div>
+        <div style="font-size: 19px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 4px; color: #0f172a;">
+          Vocalis
+        </div>
+        <div style="font-size: 13px; font-weight: 500; color: #64748b; margin-bottom: 24px;">
+          Terapia Vocal & Fonoaudiologia
+        </div>
+        <div style="width: 28px; height: 28px; border: 3px solid #e2e8f0; border-top-color: #0d9488; border-radius: 50%; animation: vocalisSpin 0.75s linear infinite;"></div>
+        <style>@keyframes vocalisSpin{to{transform:rotate(360deg)}}@media (prefers-color-scheme:dark){#root>div{color:#f8fafc!important;background-color:#020617!important}#root>div>div:nth-child(2){color:#f8fafc!important}}</style>
+      </div>
+    </div>
+  </body>
+</html>
