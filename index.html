@@ -68,10 +68,11 @@
 
         window.addEventListener('unhandledrejection', function(e) {
           var reason = (e && e.reason) || '';
-          var reasonStr = String(reason);
+          var reasonStr = String(reason && reason.message ? reason.message : reason);
           if (
             reasonStr.indexOf('chrome-extension:') !== -1 ||
-            reasonStr.indexOf('Cannot set property fetch') !== -1
+            reasonStr.indexOf('Cannot set property fetch') !== -1 ||
+            reasonStr.indexOf('WebSocket closed without opened') !== -1
           ) {
             if (e.preventDefault) e.preventDefault();
             return;

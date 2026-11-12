@@ -349,9 +349,16 @@ async function setupFrontend() {
   const distPath = path.join(__dirname, 'dist');
 
   if (isDev) {
+    if (!process.env.DISABLE_HMR) {
+      process.env.DISABLE_HMR = 'true';
+    }
     const { createServer } = await import('vite');
     const vite = await createServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: false,
+        ws: false,
+      },
       appType: 'spa'
     });
     app.use(vite.middlewares);
