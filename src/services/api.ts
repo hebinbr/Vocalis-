@@ -818,5 +818,72 @@ export const api = {
         generated_at: new Date().toISOString()
       };
     }
+  },
+
+  // Web Push (Notificações fora do app / segundo plano)
+  async getPushPublicKey(): Promise<{ publicKey: string; enabled: boolean } | null> {
+    try {
+      return await fetchJsonWithRetry('/api/push/public-key');
+    } catch {
+      return null;
+    }
+  },
+
+  async subscribePush(data: {
+    subscription: PushSubscriptionJSON;
+    reminders: Reminder[];
+    tzOffsetMinutes: number;
+    userId?: number;
+  }): Promise<{ success: boolean }> {
+    try {
+      return await fetchJsonWithRetry('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+    } catch {
+      return { success: false };
+    }
+  },
+
+  async syncPushReminders(data: {
+    endpoint?: string;
+    userId?: number;
+    reminders: Reminder[];
+    tzOffsetMinutes: number;
+  }): Promise<{ success: boolean }> {
+    try {
+      return await fetchJsonWithRetry('/api/push/sync-reminders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+    } catch {
+      return { success: false };
+    }
+  },
+
+  async unsubscribePush(endpoint: string): Promise<{ success: boolean }> {
+    try {
+      return await fetchJsonWithRetry('/api/push/unsubscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint }),
+      });
+    } catch {
+      return { success: false };
+    }
+  },
+
+  async sendTestPush(endpoint?: string, userId?: number): Promise<{ success: boolean; sent?: number }> {
+    try {
+      return await fetchJsonWithRetry('/api/push/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint, userId }),
+      });
+    } catch {
+      return { success: false };
+    }
   }
 };

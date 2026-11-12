@@ -145,7 +145,27 @@ class MainActivity : AppCompatActivity() {
 
         // Carrega os assets locais empacotados via npm run android:sync
         // Para apontar para um servidor em produção, altere para a URL HTTPS do servidor Vocalis
-        webView.loadUrl("https://appassets.androidplatform.net/assets/www/index.html")
+        val launchReminderId = intent?.getIntExtra(ReminderScheduler.EXTRA_REMINDER_ID, 0) ?: 0
+        val initialUrl = if (launchReminderId > 0) {
+            "https://appassets.androidplatform.net/assets/www/index.html?tab=exercises&reminderId=$launchReminderId"
+        } else {
+            "https://appassets.androidplatform.net/assets/www/index.html"
+        }
+        webView.loadUrl(initialUrl)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val reminderId = intent.getIntExtra(ReminderScheduler.EXTRA_REMINDER_ID, 0)
+        if (reminderId > 0 && ::webView.isInitialized) {
+            webView.post {
+                webView.evaluateJavascript(
+                    "window.dispatchEvent(new CustomEvent('vocalis-open-reminder', { detail: { reminderId: $reminderId } }));",
+                    null
+                )
+            }
+        }
     }
 
     private fun requestEssentialPermissions() {
@@ -222,6 +242,11 @@ class MainActivity : AppCompatActivity() {
                     window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 }
             }
+        }
+
+        @JavascriptInterface
+        fun syncReminders(remindersJson: String) {
+            ReminderScheduler.saveAndSchedule(this@MainActivity, remindersJson)
         }
 
         @JavascriptInterface

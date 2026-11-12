@@ -18,7 +18,8 @@ import {
   SlidersHorizontal,
   Plus,
   RotateCcw,
-  Info
+  Info,
+  Clock
 } from 'lucide-react';
 import { ProgressStats, ExerciseLog, Patient, User, WeatherData, VocalTip } from '../types';
 import {
@@ -28,6 +29,13 @@ import {
   CLIMATE_SIMULATION_PRESETS
 } from '../services/weatherService';
 import { ALL_VOCAL_TIPS, selectContextualTip } from '../data/vocalTipsData';
+import {
+  getOrRotateDailyTip,
+  setDailyTipApplied,
+  formatRemaining24h,
+  PersistedDailyTipState
+} from '../utils/dailyTipStorage';
+import { triggerHaptic } from '../utils/androidBridge';
 
 // Safe localStorage access helpers to prevent crashes in restricted iframe sandbox
 function safeGetStorage(key: string): string | null {
@@ -59,8 +67,17 @@ export const DailyVocalTip: React.FC<DailyVocalTipProps> = ({
   patient = null,
   currentUser = null
 }) => {
-  // Mode selection: 'climate' (default), 'frequency', 'hydration', 'all'
-  const [activeMode, setActiveMode] = useState<'climate' | 'frequency' | 'hydration' | 'all'>('climate');
+  // Mode selection: 'daily' (24h persisted default), 'climate', 'frequency', 'hydration', 'all'
+  const [activeMode, setActiveMode] = useState<'daily' | 'climate' | 'frequency' | 'hydration' | 'all'>('daily');
+
+  // 24h persisted Dica do Dia state in localStorage
+  const [dailyTipBundle, setDailyTipBundle] = useState<{
+    tip: VocalTip;
+    state: PersistedDailyTipState;
+  }>(() => getOrRotateDailyTip(ALL_VOCAL_TIPS));
+  const [remainingTimeText, setRemainingTimeText] = useState<string>(() =>
+    formatRemaining24h(getOrRotateDailyTip(ALL_VOCAL_TIPS).state.expiresAt)
+  );
 
   // Weather state with safe fallback
   const [weather, setWeather] = useState<WeatherData>(() => {
@@ -158,6 +175,34 @@ export const DailyVocalTip: React.FC<DailyVocalTipProps> = ({
     };
   }, []);
 
+  // Auto-refresh 24h countdown and rotate automatically when 24h expires
+  useEffect(() => {
+    const updateTimer = () => {
+      const now = Date.now();
+      if (now >= dailyTipBundle.state.expiresAt) {
+        const rotated = getOrRotateDailyTip(ALL_VOCAL_TIPS);
+        setDailyTipBundle(rotated);
+        setRemainingTimeText(formatRemaining24h(rotated.state.expiresAt, now));
+      } else {
+        setRemainingTimeText(formatRemaining24h(dailyTipBundle.state.expiresAt, now));
+      }
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 60000);
+    return () => clearInterval(interval);
+  }, [dailyTipBundle.state.expiresAt]);
+
+  const handleToggleDailyApplied = () => {
+    const nextApplied = !dailyTipBundle.state.applied;
+    triggerHaptic(15);
+    const updated = setDailyTipApplied(nextApplied);
+    setDailyTipBundle((prev) => ({
+      ...prev,
+      state: updated || { ...prev.state, applied: nextApplied },
+    }));
+  };
+
   // Save hydration progress
   const handleDrinkWater = () => {
     const next = glassesDrank + 1;
@@ -210,12 +255,15 @@ export const DailyVocalTip: React.FC<DailyVocalTipProps> = ({
   }, [weather, stats, logs, activeMode]);
 
   const currentTip: VocalTip = useMemo(() => {
+    if (activeMode === 'daily') {
+      return dailyTipBundle.tip || ALL_VOCAL_TIPS[0];
+    }
     if (activeMode === 'all') {
       const idx = Math.abs(manualIndex) % ALL_VOCAL_TIPS.length;
       return ALL_VOCAL_TIPS[idx] || ALL_VOCAL_TIPS[0];
     }
     return contextualRecommendation?.tip || ALL_VOCAL_TIPS[0];
-  }, [activeMode, manualIndex, contextualRecommendation]);
+  }, [activeMode, dailyTipBundle.tip, manualIndex, contextualRecommendation]);
 
   const handleNextTip = () => {
     setManualIndex((prev) => (prev + 1) % ALL_VOCAL_TIPS.length);
@@ -295,17 +343,18 @@ export const DailyVocalTip: React.FC<DailyVocalTipProps> = ({
             <Lightbulb className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-300">
-                Prescrição Inteligente
+                Dica do Dia · 24h
               </span>
               <span className="text-slate-300 dark:text-slate-600">·</span>
-              <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                Conselho Fonoaudiológico do Dia
+              <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                <Clock className="w-3 h-3 text-teal-600 dark:text-teal-400" />
+                <span>Nova dica em {remainingTimeText}</span>
               </span>
             </div>
             <h3 className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-slate-100 font-display">
-              Dica & Higiene Vocal Personalizada
+              Dica do Dia: Higiene Vocal
             </h3>
           </div>
         </div>
@@ -420,6 +469,19 @@ export const DailyVocalTip: React.FC<DailyVocalTipProps> = ({
 
       {/* MODE TABS SWITCHER */}
       <div className="flex items-center gap-1.5 pt-3 overflow-x-auto pb-1 text-xs font-bold relative z-10 scrollbar-none">
+        <button
+          type="button"
+          onClick={() => setActiveMode('daily')}
+          className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+            activeMode === 'daily'
+              ? 'bg-teal-600 text-white shadow-xs'
+              : 'bg-white/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-white'
+          }`}
+        >
+          <Lightbulb className="w-3.5 h-3.5" />
+          <span>Dica do Dia (24h)</span>
+        </button>
+
         <button
           type="button"
           onClick={() => setActiveMode('climate')}
@@ -575,10 +637,34 @@ export const DailyVocalTip: React.FC<DailyVocalTipProps> = ({
           </div>
         </div>
       ) : (
-        /* CONTENT AREA: TIP DETAILS (CLIMATE / FREQUENCY / ALL) */
+        /* CONTENT AREA: TIP DETAILS (DAILY / CLIMATE / FREQUENCY / ALL) */
         <div className="pt-4 relative z-10 space-y-3">
           {/* Why this tip was picked */}
-          {activeMode !== 'all' && (
+          {activeMode === 'daily' ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-teal-100 dark:bg-teal-950/70 text-teal-800 dark:text-teal-300 font-bold text-[11px]">
+                  Recomendação Diária de Higiene Vocal
+                </span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Salva localmente · Atualiza automaticamente a cada 24h
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleToggleDailyApplied}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[11px] font-bold border transition-all cursor-pointer ${
+                  dailyTipBundle.state.applied
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-teal-400'
+                }`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>{dailyTipBundle.state.applied ? 'Aplicada Hoje' : 'Marcar como Aplicada'}</span>
+              </button>
+            </div>
+          ) : activeMode !== 'all' ? (
             <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-teal-100 dark:bg-teal-950/70 text-teal-800 dark:text-teal-300 font-bold text-[11px]">
                 {contextualRecommendation?.reasonBadge || 'Conselho Fonoaudiológico'}
@@ -587,7 +673,7 @@ export const DailyVocalTip: React.FC<DailyVocalTipProps> = ({
                 {contextualRecommendation?.reasonDetail || 'Higiene e biomecânica para proteção da voz.'}
               </span>
             </div>
-          )}
+          ) : null}
 
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
             <div className="flex items-start gap-3.5 max-w-4xl">
@@ -640,6 +726,8 @@ export const DailyVocalTip: React.FC<DailyVocalTipProps> = ({
               <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 tabular-nums">
                 {activeMode === 'all'
                   ? `${(Math.abs(manualIndex) % ALL_VOCAL_TIPS.length) + 1} de ${ALL_VOCAL_TIPS.length}`
+                  : activeMode === 'daily'
+                  ? 'Ciclo de 24h'
                   : 'Dica Selecionada'}
               </div>
 

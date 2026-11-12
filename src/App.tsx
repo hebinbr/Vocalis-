@@ -4,7 +4,7 @@
  * Backend Python 3 + SQLite com criptografia de dados de pacientes (LGPD)
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Activity,
   ShieldCheck,
@@ -368,8 +368,87 @@ export default function App() {
     }
   }, [exercises]);
 
-  // Browser Push Notification Scheduler with Web Worker background ticker
-  const notificationScheduler = useNotificationScheduler(reminders, handleStartReminderExercise);
+  // Browser Push Notification Scheduler with Web Push (VAPID), Service Worker, Web Worker & Android AlarmManager
+  const notificationScheduler = useNotificationScheduler(
+    reminders,
+    handleStartReminderExercise,
+    currentUser?.id
+  );
+
+  // Deep-link launcher when patient clicks a notification outside the app (Web Push / Android Alarm)
+  const handledUrlReminderRef = useRef<boolean>(false);
+  useEffect(() => {
+    if (handledUrlReminderRef.current || exercises.length === 0 || reminders.length === 0) return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const remIdParam = params.get('reminderId');
+      if (!remIdParam) return;
+
+      handledUrlReminderRef.current = true;
+      const numericId = Number(remIdParam);
+      const matchedReminder = reminders.find((r) => r.id === numericId) || {
+        id: numericId || Date.now(),
+        title: 'Lembrete de Exercício Vocal',
+        time_str: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        days_mask: ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'],
+        is_active: true,
+        sound_alert: true,
+        category: 'exercicio' as const,
+      };
+      handleStartReminderExercise(matchedReminder);
+
+      params.delete('reminderId');
+      const remaining = params.toString();
+      const nextUrl = `${window.location.pathname}${remaining ? `?${remaining}` : ''}`;
+      window.history.replaceState({}, '', nextUrl);
+    } catch {}
+  }, [exercises, reminders, handleStartReminderExercise]);
+
+  // Escuta cliques em notificações vindas do Service Worker ou da Intent do Android
+  useEffect(() => {
+    const openByIds = (reminderId?: number | string, exerciseId?: string) => {
+      const numericId = Number(reminderId);
+      const matched =
+        (Number.isFinite(numericId) && reminders.find((r) => r.id === numericId)) ||
+        undefined;
+      if (matched) {
+        handleStartReminderExercise(matched);
+      } else if (exerciseId) {
+        const ex = exercises.find((e) => e.id === exerciseId);
+        setCurrentTab('exercises');
+        if (ex) setActiveExercise(ex);
+      } else {
+        setCurrentTab('exercises');
+        if (exercises.length > 0) setActiveExercise(exercises[0]);
+      }
+    };
+
+    const handleSwMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (data?.type === 'OPEN_REMINDER_EXERCISE') {
+        openByIds(data.reminderId, data.exerciseId);
+      }
+    };
+
+    const handleAndroidEvent = (event: Event) => {
+      const detail = (event as CustomEvent<{ reminderId?: number; exerciseId?: string }>).detail;
+      if (detail) {
+        openByIds(detail.reminderId, detail.exerciseId);
+      }
+    };
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleSwMessage);
+    }
+    window.addEventListener('vocalis-open-reminder', handleAndroidEvent);
+
+    return () => {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleSwMessage);
+      }
+      window.removeEventListener('vocalis-open-reminder', handleAndroidEvent);
+    };
+  }, [exercises, reminders, handleStartReminderExercise]);
 
   // Handle user authentication switch
   const handleAuthSuccess = (user: User) => {

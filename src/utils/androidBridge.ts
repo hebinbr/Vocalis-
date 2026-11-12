@@ -7,6 +7,7 @@
 export interface NativeAndroidBridgeInterface {
   vibrate?: (ms: number) => void;
   showNotification?: (title: string, body: string) => void;
+  syncReminders?: (remindersJson: string) => void;
   sharePdfBase64?: (base64Data: string, filename: string, title: string) => void;
   keepScreenOn?: (enabled: boolean) => void;
   getAppVersion?: () => string;
@@ -49,6 +50,18 @@ export function triggerHaptic(pattern: number | number[] = 15): void {
   } catch {
     // Ignore vibration permission restrictions
   }
+}
+
+export function syncAndroidAlarms(reminders: unknown[]): boolean {
+  try {
+    if (typeof window !== 'undefined' && window.VocalisAndroid?.syncReminders) {
+      window.VocalisAndroid.syncReminders(JSON.stringify(reminders || []));
+      return true;
+    }
+  } catch {
+    // Ignore bridge invocation errors
+  }
+  return false;
 }
 
 let activeWakeLock: { release: () => Promise<void> } | null = null;

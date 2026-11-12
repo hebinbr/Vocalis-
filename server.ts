@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { sqliteService } from './src/server/sqliteService.ts';
+import { pushService } from './src/server/pushService.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -302,6 +303,44 @@ function handleNativeSqliteRoute(req: Request, res: Response): boolean {
   return false;
 }
 
+// Web Push (VAPID) routes for out-of-app / closed-tab notifications
+app.get('/api/push/public-key', (_req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.json({ publicKey: pushService.getPublicKey(), enabled: true });
+});
+
+app.post('/api/push/subscribe', (req: Request, res: Response) => {
+  try {
+    const result = pushService.subscribe(req.body || {});
+    res.json(result);
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err?.message || 'Falha ao registrar inscrição Push' });
+  }
+});
+
+app.post('/api/push/sync-reminders', (req: Request, res: Response) => {
+  try {
+    const result = pushService.syncReminders(req.body || {});
+    res.json(result);
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err?.message || 'Falha ao sincronizar lembretes Push' });
+  }
+});
+
+app.post('/api/push/unsubscribe', (req: Request, res: Response) => {
+  const result = pushService.unsubscribe(String(req.body?.endpoint || ''));
+  res.json(result);
+});
+
+app.post('/api/push/test', async (req: Request, res: Response) => {
+  try {
+    const result = await pushService.sendTestPush(req.body?.endpoint, req.body?.userId);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'Falha ao enviar Push de teste' });
+  }
+});
+
 // Process API requests: Primary native high-speed SQLite engine (0.001s, 0 network latency)
 // with seamless Python bridge fallback
 app.all('/api/*', async (req: Request, res: Response) => {
@@ -382,6 +421,7 @@ async function setupFrontend() {
 
   app.listen(PORT, () => {
     console.log(`[Vocalis] Server running on http://0.0.0.0:${PORT} (Mode: ${isDev ? 'Vite Dev' : 'Production Dist'})`);
+    pushService.startScheduler();
   });
 }
 

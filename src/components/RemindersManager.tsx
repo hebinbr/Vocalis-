@@ -19,6 +19,7 @@ import {
   Send,
   Loader2,
   Calendar,
+  CalendarPlus,
   CheckCircle2,
   Info
 } from 'lucide-react';
@@ -26,6 +27,7 @@ import { Reminder, Exercise } from '../types';
 import { useVocalAudio } from '../hooks/useVocalAudio';
 import { UseNotificationSchedulerReturn } from '../hooks/useNotificationScheduler';
 import { NotificationSettingsBanner } from './NotificationSettingsBanner';
+import { downloadRemindersIcs } from '../utils/icsExport';
 import therapistAvatarImg from '../assets/images/avatar_therapist_1793024499041.jpg';
 
 interface RemindersManagerProps {
@@ -104,6 +106,15 @@ export const RemindersManager: React.FC<RemindersManagerProps> = ({
   const [testingVisualId, setTestingVisualId] = useState<number | null>(null);
   const [testVisualSentId, setTestVisualSentId] = useState<number | null>(null);
   const [quickSaveSuccess, setQuickSaveSuccess] = useState<boolean>(false);
+  const [icsExportCount, setIcsExportCount] = useState<number | null>(null);
+
+  const handleExportIcs = () => {
+    const count = downloadRemindersIcs(reminders);
+    if (count > 0) {
+      setIcsExportCount(count);
+      setTimeout(() => setIcsExportCount(null), 4000);
+    }
+  };
 
   // Open modal in create mode
   const handleOpenCreateModal = () => {
@@ -297,6 +308,25 @@ export const RemindersManager: React.FC<RemindersManagerProps> = ({
 
           <button
             type="button"
+            onClick={handleExportIcs}
+            disabled={activeRemindersCount === 0}
+            className={`px-3 py-2 text-xs font-semibold rounded-xl border flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 ${
+              icsExportCount !== null
+                ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+                : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700'
+            }`}
+            title="Exportar lembretes recorrentes para Google Agenda ou Calendário do dispositivo"
+          >
+            <CalendarPlus className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+            <span>
+              {icsExportCount !== null
+                ? `${icsExportCount} exportado(s)!`
+                : 'Exportar Agenda (.ics)'}
+            </span>
+          </button>
+
+          <button
+            type="button"
             onClick={handleOpenCreateModal}
             className="px-4 py-2.5 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 active:bg-teal-800 dark:bg-teal-500 dark:hover:bg-teal-600 rounded-xl shadow-md shadow-teal-600/20 transition-all flex items-center gap-1.5 cursor-pointer"
           >
@@ -306,16 +336,20 @@ export const RemindersManager: React.FC<RemindersManagerProps> = ({
         </div>
       </div>
 
-      {/* 2. Banner de Notificações em Segundo Plano & Configuração do Navegador */}
+      {/* 2. Banner de Notificações Fora do App & Configuração do Dispositivo */}
       {notificationScheduler && (
         <NotificationSettingsBanner
           permission={notificationScheduler.permission}
           isSupported={notificationScheduler.isSupported}
           isSubscribed={notificationScheduler.isSubscribed}
           isWorkerActive={notificationScheduler.isWorkerActive}
+          isPushSubscribed={notificationScheduler.isPushSubscribed}
+          isAndroidAlarmSynced={notificationScheduler.isAndroidAlarmSynced}
           onRequestPermission={notificationScheduler.requestPermission}
+          onEnableBackgroundPush={notificationScheduler.enableBackgroundPush}
           onSendTestNotification={notificationScheduler.sendTestNotification}
           onToggleNotifications={notificationScheduler.toggleNotifications}
+          onExportIcs={handleExportIcs}
         />
       )}
 
