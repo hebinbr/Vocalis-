@@ -64,7 +64,7 @@ export const YouTubeVideoModal: React.FC<YouTubeVideoModalProps> = ({
       const normalized = trimmed ? normalizeYouTubeUrl(trimmed) || trimmed : null;
 
       await api.updateExercise(currentExercise.id, {
-        video_url: normalized || undefined,
+        video_url: normalized ?? '',
       });
 
       const updated: Exercise = {

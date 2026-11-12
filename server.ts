@@ -228,6 +228,23 @@ function handleNativeSqliteRoute(req: Request, res: Response): boolean {
         res.status(201).json(result);
         return true;
       }
+      if (urlPath === '/api/exercises/update' && req.body?.id) {
+        res.json(sqliteService.updateExercise(String(req.body.id), req.body));
+        return true;
+      }
+      if (urlPath.startsWith('/api/exercises/') && urlPath.endsWith('/delete')) {
+        const parts = urlPath.split('/');
+        const id = decodeURIComponent(parts[parts.length - 2] || '');
+        res.json(sqliteService.deleteExercise(id));
+        return true;
+      }
+      if (urlPath.startsWith('/api/exercises/')) {
+        const id = decodeURIComponent(urlPath.split('/').pop() || '');
+        if (id && id !== 'update') {
+          res.json(sqliteService.updateExercise(id, req.body));
+          return true;
+        }
+      }
       if (urlPath === '/api/symptoms') {
         const userId = req.body?.user_id ? Number(req.body.user_id) : undefined;
         const result = sqliteService.addSymptom(req.body, userId);
@@ -236,14 +253,14 @@ function handleNativeSqliteRoute(req: Request, res: Response): boolean {
       }
     }
 
-    if (method === 'PUT') {
+    if (method === 'PUT' || method === 'PATCH') {
       if (urlPath === '/api/patient') {
         const userId = req.body?.user_id ? Number(req.body.user_id) : undefined;
         res.json(sqliteService.updatePatient(req.body, userId));
         return true;
       }
       if (urlPath.startsWith('/api/exercises/')) {
-        const id = urlPath.split('/').pop() || '';
+        const id = decodeURIComponent(urlPath.split('/').pop() || '');
         res.json(sqliteService.updateExercise(id, req.body));
         return true;
       }
@@ -256,7 +273,7 @@ function handleNativeSqliteRoute(req: Request, res: Response): boolean {
 
     if (method === 'DELETE') {
       if (urlPath.startsWith('/api/exercises/')) {
-        const id = urlPath.split('/').pop() || '';
+        const id = decodeURIComponent(urlPath.split('/').pop() || '');
         res.json(sqliteService.deleteExercise(id));
         return true;
       }

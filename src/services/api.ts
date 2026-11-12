@@ -359,6 +359,7 @@ export const api = {
   },
 
   async getExercises(patientId?: number, includeAll?: boolean): Promise<Exercise[]> {
+    let baseList: Exercise[] = INITIAL_EXERCISES;
     try {
       const params = new URLSearchParams();
       if (patientId) params.append('patient_id', String(patientId));
@@ -366,33 +367,232 @@ export const api = {
       params.append('_t', String(Date.now()));
       const url = `/api/exercises?${params.toString()}`;
       const list = await fetchJsonWithRetry<Exercise[]>(url);
-      if (Array.isArray(list) && list.length > 0) return list;
-      return INITIAL_EXERCISES;
+      if (Array.isArray(list) && list.length > 0) {
+        baseList = list;
+      }
     } catch {
-      return INITIAL_EXERCISES;
+      baseList = INITIAL_EXERCISES;
     }
+
+    // Mescla alterações/vídeos salvos localmente em ambientes estáticos ou offline (ex: Vercel 405)
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const overridesRaw = localStorage.getItem('vocalis_local_exercises_overrides');
+        const customRaw = localStorage.getItem('vocalis_local_custom_exercises');
+        const deletedRaw = localStorage.getItem('vocalis_local_deleted_exercises');
+
+        const overrides: Record<string, Partial<Exercise>> = overridesRaw ? JSON.parse(overridesRaw) : {};
+        const customList: Exercise[] = customRaw ? JSON.parse(customRaw) : [];
+        const deletedIds: string[] = deletedRaw ? JSON.parse(deletedRaw) : [];
+
+        const existingIds = new Set(baseList.map((e) => e.id));
+        const mergedCustom = customList.filter((c) => !existingIds.has(c.id));
+
+        return [...mergedCustom, ...baseList]
+          .filter((ex) => !deletedIds.includes(ex.id))
+          .map((ex) => {
+            const patch = overrides[ex.id];
+            if (!patch) return ex;
+            return {
+              ...ex,
+              ...patch,
+              video_url: patch.video_url !== undefined ? (patch.video_url || undefined) : ex.video_url,
+            };
+          });
+      }
+    } catch (e) {
+      console.warn('[Vocalis Exercises] Falha ao mesclar cache local:', e);
+    }
+
+    return baseList;
   },
 
   async createExercise(data: Partial<Exercise> & { therapist_id?: number; created_by_name?: string }): Promise<{ success: boolean; exercise: Exercise }> {
-    return await fetchJsonWithRetry('/api/exercises', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
+    try {
+      return await fetchJsonWithRetry('/api/exercises', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+    } catch (err: any) {
+      const status = err?.status;
+      if (status && ![404, 405, 501, 502, 503, 504].includes(status)) {
+        throw err;
+      }
+
+      console.warn('[Vocalis Exercises] Backend indisponível (status ' + (status || 'network') + '), salvando exercício localmente:', err);
+      const newEx: Exercise = {
+        id: data.id || `custom_${Date.now()}`,
+        title: data.title || 'Exercício Personalizado',
+        category: data.category || 'Personalizado',
+        target_range: data.target_range || 'Confortável',
+        description: data.description || '',
+        benefits: data.benefits || '',
+        instructions: data.instructions || ['Siga a orientação da fonoaudióloga.'],
+        default_reps: data.default_reps || 3,
+        default_duration_sec: data.default_duration_sec || 60,
+        target_hz: data.target_hz || 220,
+        caution_tips: data.caution_tips || '',
+        icon_name: data.icon_name || 'Sparkles',
+        min_level: data.min_level || 1,
+        xp_reward: data.xp_reward || 45,
+        is_challenge: Boolean(data.is_challenge),
+        video_url: data.video_url || undefined,
+        therapist_id: data.therapist_id,
+        created_by_name: data.created_by_name || 'Dra. Beatriz Menezes',
+        patient_id: data.patient_id ?? null,
+        is_custom: true
+      };
+
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          const raw = localStorage.getItem('vocalis_local_custom_exercises');
+          const list: Exercise[] = raw ? JSON.parse(raw) : [];
+          list.unshift(newEx);
+          localStorage.setItem('vocalis_local_custom_exercises', JSON.stringify(list));
+        }
+      } catch (e) {
+        console.warn('Erro ao salvar exercício customizado no localStorage:', e);
+      }
+
+      return { success: true, exercise: newEx };
+    }
   },
 
   async updateExercise(id: string, data: Partial<Exercise>): Promise<{ success: boolean; message: string; exercise?: Exercise }> {
-    return await fetchJsonWithRetry<{ success: boolean; message: string; exercise?: Exercise }>(`/api/exercises/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
+    const encodedId = encodeURIComponent(id);
+    const body = JSON.stringify(data);
+
+    const clearLocalOverride = () => {
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          const raw = localStorage.getItem('vocalis_local_exercises_overrides');
+          if (raw) {
+            const map = JSON.parse(raw);
+            if (map[id]) {
+              delete map[id];
+              localStorage.setItem('vocalis_local_exercises_overrides', JSON.stringify(map));
+            }
+          }
+        }
+      } catch {}
+    };
+
+    try {
+      const res = await fetchJsonWithRetry<{ success: boolean; message: string; exercise?: Exercise }>(`/api/exercises/${encodedId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body
+      });
+      clearLocalOverride();
+      return res;
+    } catch (putErr: any) {
+      const putStatus = putErr?.status;
+
+      // Se um proxy bloqueou PUT (405/404/501), tenta via POST que muitos proxies permitem
+      if (!putStatus || [404, 405, 501].includes(putStatus)) {
+        try {
+          const postRes = await fetchJsonWithRetry<{ success: boolean; message: string; exercise?: Exercise }>(`/api/exercises/${encodedId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body
+          });
+          clearLocalOverride();
+          return postRes;
+        } catch (postErr: any) {
+          const postStatus = postErr?.status;
+          if (postStatus && ![404, 405, 501, 502, 503, 504].includes(postStatus)) {
+            throw postErr;
+          }
+        }
+      } else if (![502, 503, 504].includes(putStatus)) {
+        throw putErr;
+      }
+
+      // Fallback persistente local para hospedagem estática (ex: Vercel com 405) ou modo offline
+      console.warn('[Vocalis Exercises] Persistindo atualização e link do YouTube localmente (ambiente estático/offline):', id);
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          const customRaw = localStorage.getItem('vocalis_local_custom_exercises');
+          if (customRaw) {
+            const customList: Exercise[] = JSON.parse(customRaw);
+            const idx = customList.findIndex((c) => c.id === id);
+            if (idx !== -1) {
+              customList[idx] = {
+                ...customList[idx],
+                ...data,
+                video_url: data.video_url !== undefined ? (data.video_url || undefined) : customList[idx].video_url,
+              };
+              localStorage.setItem('vocalis_local_custom_exercises', JSON.stringify(customList));
+            }
+          }
+
+          const overridesRaw = localStorage.getItem('vocalis_local_exercises_overrides');
+          const overrides: Record<string, Partial<Exercise>> = overridesRaw ? JSON.parse(overridesRaw) : {};
+          overrides[id] = {
+            ...(overrides[id] || {}),
+            ...data,
+          };
+          localStorage.setItem('vocalis_local_exercises_overrides', JSON.stringify(overrides));
+        }
+      } catch (storageErr) {
+        console.warn('Erro ao salvar override local de exercício:', storageErr);
+      }
+
+      return {
+        success: true,
+        message: 'Exercício e link de vídeo salvos com sucesso!'
+      };
+    }
   },
 
   async deleteExercise(id: string): Promise<{ success: boolean; message: string }> {
-    return await fetchJsonWithRetry(`/api/exercises/${id}`, {
-      method: 'DELETE'
-    });
+    const encodedId = encodeURIComponent(id);
+    try {
+      return await fetchJsonWithRetry(`/api/exercises/${encodedId}`, {
+        method: 'DELETE'
+      });
+    } catch (delErr: any) {
+      const delStatus = delErr?.status;
+      if (!delStatus || [404, 405, 501].includes(delStatus)) {
+        try {
+          return await fetchJsonWithRetry(`/api/exercises/${encodedId}/delete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+          });
+        } catch (postErr: any) {
+          const postStatus = postErr?.status;
+          if (postStatus && ![404, 405, 501, 502, 503, 504].includes(postStatus)) {
+            throw postErr;
+          }
+        }
+      } else if (![502, 503, 504].includes(delStatus)) {
+        throw delErr;
+      }
+
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          const customRaw = localStorage.getItem('vocalis_local_custom_exercises');
+          if (customRaw) {
+            const customList: Exercise[] = JSON.parse(customRaw);
+            localStorage.setItem(
+              'vocalis_local_custom_exercises',
+              JSON.stringify(customList.filter((c) => c.id !== id))
+            );
+          }
+
+          const deletedRaw = localStorage.getItem('vocalis_local_deleted_exercises');
+          const deletedIds: string[] = deletedRaw ? JSON.parse(deletedRaw) : [];
+          if (!deletedIds.includes(id)) {
+            deletedIds.push(id);
+            localStorage.setItem('vocalis_local_deleted_exercises', JSON.stringify(deletedIds));
+          }
+        }
+      } catch {}
+
+      return { success: true, message: 'Exercício removido com sucesso!' };
+    }
   },
 
   async getLogs(userId?: number): Promise<ExerciseLog[]> {
