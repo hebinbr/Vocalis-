@@ -50,16 +50,37 @@ declare global {
 
 const sw = self as unknown as SwGlobalScope;
 
+// Token literal exigido pelo workbox-build injectManifest
+const manifestEntries = self.__WB_MANIFEST;
+const isProdBuild = Array.isArray(manifestEntries) && manifestEntries.length > 0;
+
 // Workbox Precache & Lifecycle
 cleanupOutdatedCaches();
-precacheAndRoute(self.__WB_MANIFEST);
+if (isProdBuild) {
+  precacheAndRoute(manifestEntries);
+}
 clientsClaim();
 
 sw.addEventListener('install', () => {
   void sw.skipWaiting();
 });
 
-// Runtime Caching (equivalente ao configurado anteriormente em vite.config.ts)
+// Em modo dev, limpa caches de builds anteriores para evitar HTML/chunks desatualizados no preview
+sw.addEventListener('activate', (event: { waitUntil: (p: Promise<unknown>) => void }) => {
+  if (!isProdBuild) {
+    event.waitUntil(
+      caches.keys().then((names) =>
+        Promise.all(
+          names
+            .filter((name) => name.includes('workbox-precache'))
+            .map((name) => caches.delete(name))
+        )
+      )
+    );
+  }
+});
+
+// Runtime Caching apenas para APIs e fontes; em dev nunca intercepta navegações ou módulos Vite
 registerRoute(/^\/api\/.*/i, new NetworkOnly());
 
 registerRoute(
@@ -84,26 +105,32 @@ registerRoute(
   })
 );
 
-// SPA Navigation fallback sem interceptar /api
-try {
-  registerRoute(
-    new NavigationRoute(
-      async ({ request }) => {
-        try {
+// SPA Navigation NetworkFirst apenas em build de produção (nunca intercepta navegações no dev server)
+if (isProdBuild) {
+  try {
+    registerRoute(
+      new NavigationRoute(
+        async ({ request }) => {
+          try {
+            const networkResponse = await fetch(request.url, {
+              credentials: 'same-origin',
+            });
+            if (networkResponse && networkResponse.ok) {
+              return networkResponse;
+            }
+          } catch {
+            // Sem rede: segue para fallback offline
+          }
           const cached = await caches.match('/index.html');
           if (cached) return cached;
-          return await fetch(request);
-        } catch {
-          const fallback = await caches.match('/index.html');
-          if (fallback) return fallback;
-          return new Response('Vocalis Offline', { status: 503 });
-        }
-      },
-      { denylist: [/^\/api/] }
-    )
-  );
-} catch {
-  // NavigationRoute pode falhar caso /index.html ainda não esteja precacheado em dev
+          return fetch(request);
+        },
+        { denylist: [/^\/api/] }
+      )
+    );
+  } catch {
+    // Fallback seguro
+  }
 }
 
 // ============================================================================
@@ -194,7 +221,6 @@ async function checkOfflineDueReminders(): Promise<void> {
   const firedKeys: Record<string, number> = { ...(state.firedKeys || {}) };
   let changed = false;
 
-  // Limpa registros com mais de 4h
   for (const [k, ts] of Object.entries(firedKeys)) {
     if (nowMs - ts > 4 * 60 * 60 * 1000) {
       delete firedKeys[k];
@@ -211,7 +237,6 @@ async function checkOfflineDueReminders(): Promise<void> {
     const remMin = Number(hhStr) * 60 + Number(mmStr);
     if (!Number.isFinite(remMin)) continue;
 
-    // Dispara se estiver na janela exata ou dentro de 10 minutos após o horário caso o sistema tenha acordado atrasado
     const diffMin = currentTotalMin - remMin;
     if (diffMin >= 0 && diffMin <= 10) {
       const key = `${rem.id}_${dateStr}_${rem.time_str}`;
@@ -244,7 +269,6 @@ async function checkOfflineDueReminders(): Promise<void> {
   }
 }
 
-// Recebe lembretes sincronizados da interface web
 sw.addEventListener('message', (event: { data?: { type?: string; payload?: { reminders?: SwReminder[]; tzOffsetMinutes?: number } } }) => {
   const { type, payload } = event.data || {};
   if (type === 'SYNC_REMINDERS' && payload) {
@@ -264,7 +288,6 @@ sw.addEventListener('message', (event: { data?: { type?: string; payload?: { rem
   }
 });
 
-// Recebe Web Push do servidor mesmo com o app/aba totalmente fechados
 sw.addEventListener('push', (event: { data?: { json: () => any; text: () => string }; waitUntil: (p: Promise<unknown>) => void }) => {
   const showPush = async () => {
     let data: any = {};
@@ -301,7 +324,6 @@ sw.addEventListener('push', (event: { data?: { json: () => any; text: () => stri
   event.waitUntil(showPush());
 });
 
-// Clique na notificação abre ou foca o app já no exercício correto
 sw.addEventListener('notificationclick', (event: {
   notification: Notification & { data?: { reminderId?: number | string; exerciseId?: string; url?: string } };
   waitUntil: (p: Promise<unknown>) => void;
@@ -343,7 +365,6 @@ sw.addEventListener('notificationclick', (event: {
   event.waitUntil(handleClick());
 });
 
-// Background Sync / Periodic Background Sync como camada adicional quando offline
 sw.addEventListener('periodicsync', (event: { tag?: string; waitUntil: (p: Promise<unknown>) => void }) => {
   if (event.tag === 'vocalis-reminder-check') {
     event.waitUntil(checkOfflineDueReminders());

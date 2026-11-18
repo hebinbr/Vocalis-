@@ -80,7 +80,7 @@
           console.warn('[Vocalis Unhandled Rejection]:', reason);
         });
 
-        // Remove apenas o antigo service-worker.js legado caso esteja em cache, preservando o /sw.js da PWA
+        // Remove serviço antigo legado e recupera caso cache antigo de SW impeça a montagem do React
         window.addEventListener('load', function() {
           try {
             if ('serviceWorker' in navigator && navigator.serviceWorker.getRegistrations) {
@@ -94,10 +94,38 @@
               }).catch(function() {});
             }
           } catch (e) {}
+
+          setTimeout(function() {
+            try {
+              var rootEl = document.getElementById('root');
+              if (rootEl && !rootEl.getAttribute('data-vocalis-mounted')) {
+                if (sessionStorage.getItem('vocalis_sw_recovered') === '1') return;
+                sessionStorage.setItem('vocalis_sw_recovered', '1');
+                var tasks = [];
+                if ('serviceWorker' in navigator && navigator.serviceWorker.getRegistrations) {
+                  tasks.push(
+                    navigator.serviceWorker.getRegistrations().then(function(regs) {
+                      return Promise.all(regs.map(function(r) { return r.unregister(); }));
+                    }).catch(function() {})
+                  );
+                }
+                if ('caches' in window) {
+                  tasks.push(
+                    caches.keys().then(function(keys) {
+                      return Promise.all(keys.map(function(k) { return caches.delete(k); }));
+                    }).catch(function() {})
+                  );
+                }
+                Promise.all(tasks).finally(function() {
+                  window.location.reload();
+                });
+              }
+            } catch (e) {}
+          }, 5000);
         });
       })();
     </script>
-    <script type="module" crossorigin src="./assets/index-BseJtoYk.js"></script>
+    <script type="module" crossorigin src="./assets/index-DFnuknE5.js"></script>
     <link rel="stylesheet" crossorigin href="./assets/index-BHSIXpQr.css">
   <link rel="manifest" href="./manifest.webmanifest"></head>
   <body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 antialiased selection:bg-teal-500 selection:text-white transition-colors duration-200">

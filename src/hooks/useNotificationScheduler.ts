@@ -58,6 +58,8 @@ export function useNotificationScheduler(
   const workerRef = useRef<Worker | null>(null);
   const swRegRef = useRef<ServiceWorkerRegistration | null>(null);
   const pushEndpointRef = useRef<string | null>(null);
+  const isPushSubscribedRef = useRef<boolean>(false);
+  isPushSubscribedRef.current = isPushSubscribed;
   const remindersRef = useRef<Reminder[]>(reminders);
   remindersRef.current = reminders;
 
@@ -87,7 +89,7 @@ export function useNotificationScheduler(
       }
 
       // 3. Backend Web Push Scheduler (entrega notificações com o navegador/aba fechados)
-      if (pushEndpointRef.current || isPushSubscribed) {
+      if (pushEndpointRef.current || isPushSubscribedRef.current) {
         await api.syncPushReminders({
           endpoint: pushEndpointRef.current || undefined,
           userId,
@@ -96,7 +98,7 @@ export function useNotificationScheduler(
         });
       }
     },
-    [isPushSubscribed, userId]
+    [userId]
   );
 
   // Registra inscrição Web Push (VAPID) + Periodic Background Sync no Service Worker

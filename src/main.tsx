@@ -80,6 +80,7 @@ if (rootElement) {
       </ThemeProvider>
     </ErrorBoundary>
   );
+  rootElement.setAttribute('data-vocalis-mounted', 'true');
 }
 
 // Registra Service Worker da PWA (Workbox) para funcionamento offline e instalação Android

@@ -41,6 +41,7 @@ interface DayDataPoint {
   dayName: string;   // e.g. "Seg"
   dayOfWeek: number; // 0-6
   minutes: number;
+  totalSeconds: number;
   sessionsCount: number;
   avgAccuracy: number;
   movingAvgMinutes: number;
@@ -93,13 +94,13 @@ export const ThirtyDayConsistencyChart: React.FC<ThirtyDayConsistencyChartProps>
 
       const matchingLogs = logs.filter((log) => {
         if (!log) return false;
-        if (log.date_iso === dateIso) return true;
-        if (log.created_at && log.created_at.startsWith(dateIso)) return true;
+        if (log.date_iso && log.date_iso.slice(0, 10) === dateIso) return true;
+        if (log.created_at && log.created_at.slice(0, 10) === dateIso) return true;
         return false;
       });
 
       const totalSec = matchingLogs.reduce((acc, curr) => acc + (curr.duration_sec || 0), 0);
-      const minutes = Math.round(totalSec / 60);
+      const minutes = totalSec > 0 ? Number((totalSec / 60).toFixed(1)) : 0;
       const sessionsCount = matchingLogs.length;
       const avgAccuracy =
         sessionsCount > 0
@@ -119,12 +120,13 @@ export const ThirtyDayConsistencyChart: React.FC<ThirtyDayConsistencyChartProps>
         dayName,
         dayOfWeek: d.getDay(),
         minutes,
+        totalSeconds: totalSec,
         sessionsCount,
         avgAccuracy,
         exercises: exerciseNames,
         goalMinutes,
         isGoalAchieved: minutes >= goalMinutes,
-        hasActivity: minutes > 0 || sessionsCount > 0,
+        hasActivity: totalSec > 0 || sessionsCount > 0,
       });
     }
 
@@ -152,7 +154,7 @@ export const ThirtyDayConsistencyChart: React.FC<ThirtyDayConsistencyChartProps>
   }, [full30DaySeries, timeRange]);
 
   const metrics = useMemo(() => {
-    const totalMinutes = chartData.reduce((acc, d) => acc + d.minutes, 0);
+    const totalMinutes = Math.round(chartData.reduce((acc, d) => acc + d.minutes, 0));
     const totalSessions = chartData.reduce((acc, d) => acc + d.sessionsCount, 0);
     const activeDays = chartData.filter((d) => d.hasActivity).length;
     const goalMetDays = chartData.filter((d) => d.isGoalAchieved).length;
@@ -216,10 +218,10 @@ export const ThirtyDayConsistencyChart: React.FC<ThirtyDayConsistencyChartProps>
             </span>
           </div>
           <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-slate-100 font-display mt-1">
-            Frequência & Duração dos Exercícios Vocais
+            Evolução da Duração Diária & Frequência (30 Dias)
           </h3>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-2xl leading-relaxed">
-            Alterne entre duração diária (minutos), frequência (sessões) ou visão comparativa. Passe o mouse ou toque em qualquer ponto do gráfico para inspecionar os exercícios do dia.
+            Acompanhe a evolução da duração diária dos exercícios (minutos), frequência (sessões) ou visão comparativa. Passe o mouse ou toque em qualquer ponto do gráfico para inspecionar os exercícios do dia.
           </p>
         </div>
 
@@ -399,7 +401,7 @@ export const ThirtyDayConsistencyChart: React.FC<ThirtyDayConsistencyChartProps>
 
         {/* Chart Canvas */}
         <div className="h-80 sm:h-88 w-full pt-4 pb-2 px-1 sm:px-3 rounded-2xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800/80">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={280}>
             <LineChart
               data={chartData}
               margin={{ top: 12, right: metricView === 'both' ? 8 : 18, left: -14, bottom: 4 }}

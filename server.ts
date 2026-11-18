@@ -391,6 +391,43 @@ async function setupFrontend() {
     if (!process.env.DISABLE_HMR) {
       process.env.DISABLE_HMR = 'true';
     }
+    if (process.env.DISABLE_HMR === 'true') {
+      app.get('/@vite/client', (_req: Request, res: Response) => {
+        res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.send(`
+export class ErrorOverlay {}
+export function createHotContext() {
+  return {
+    accept() {},
+    dispose() {},
+    prune() {},
+    invalidate() {},
+    on() {},
+    off() {},
+    send() {},
+    data: {}
+  };
+}
+export function injectQuery(url) {
+  return url;
+}
+export function updateStyle(id, content) {
+  let style = document.querySelector('style[data-vite-dev-id="' + id + '"]');
+  if (!style) {
+    style = document.createElement('style');
+    style.setAttribute('data-vite-dev-id', id);
+    document.head.appendChild(style);
+  }
+  style.textContent = content;
+}
+export function removeStyle(id) {
+  const style = document.querySelector('style[data-vite-dev-id="' + id + '"]');
+  if (style) style.remove();
+}
+`);
+      });
+    }
     const { createServer } = await import('vite');
     const vite = await createServer({
       server: {
